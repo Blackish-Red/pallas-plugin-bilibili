@@ -9,7 +9,7 @@ ENABLE_REPLY = "收到，博士，米诺斯的众英雄为我们守望"
 DISABLE_REPLY = "米诺斯的众英雄已不再守望…"
 
 enable_command = on_message(
-    rule=fullmatch("牛牛开启B站推送", ignorecase=True),
+    rule=fullmatch("牛牛订阅B站动态", ignorecase=True),
     permission=group_message_permission_for_command("bilibili_dynamic.enable"),
     priority=5,
     block=True,

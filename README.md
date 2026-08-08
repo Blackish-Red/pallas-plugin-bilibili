@@ -11,7 +11,7 @@
 ```bash
 uv run pallas plugin community install bilibili_dynamic \
   --repo https://github.com/Blackish-Red/pallas-plugin-bilibili.git \
-  --ref v0.1.2
+  --ref v0.1.3
 ```
 
 安装或更新后重启 Bot，使插件的命令和轮询任务完成注册。
@@ -22,7 +22,7 @@ uv run pallas plugin community install bilibili_dynamic \
 
 | 命令 | 作用 |
 | --- | --- |
-| `牛牛开启B站推送` | 开启明日方舟官方 B站动态推送。 |
+| `牛牛订阅B站动态` | 订阅明日方舟官方 B站动态推送。 |
 | `牛牛关闭B站推送` | 关闭当前群的动态推送。 |
 
 命令中的 `B` 不区分大小写。首次轮询只建立当前位置，不补发历史动态；后续新增图文、动态图片和可直接获取的 GIF 会随动态一并发送。

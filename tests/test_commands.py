@@ -32,8 +32,8 @@ async def test_disable_replies_even_when_group_was_not_subscribed(monkeypatch) -
     ctx.finish.assert_awaited_once_with("米诺斯的众英雄已不再守望…")
 
 
-def test_commands_use_single_case_insensitive_matcher() -> None:
+def test_enable_command_uses_single_case_insensitive_subscription_matcher() -> None:
     rule = next(iter(commands.enable_command.rule.checkers)).call
 
     assert rule.ignorecase is True
-    assert rule.msg == ("牛牛开启b站推送",)
+    assert rule.msg == ("牛牛订阅b站动态",)

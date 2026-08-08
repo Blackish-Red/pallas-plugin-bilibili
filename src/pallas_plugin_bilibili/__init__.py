@@ -15,7 +15,7 @@ __plugin_meta__ = PluginMetadata(
     name="B站动态推送",
     description="将配置的 B站账号新增动态推送到指定群。",
     usage=join_usage(
-        usage_line("牛牛开启B站推送", "订阅明日方舟官方 B站动态"),
+        usage_line("牛牛订阅B站动态", "订阅明日方舟官方 B站动态"),
         usage_line("牛牛关闭B站推送", "停止推送明日方舟官方 B站动态"),
     ),
     type="application",
@@ -24,14 +24,14 @@ __plugin_meta__ = PluginMetadata(
         "reload_policy": "metadata",
         "disable_scope": "bot",
         "exact_plaintexts": [
-            "牛牛开启B站推送",
-            "牛牛开启b站推送",
+            "牛牛订阅B站动态",
+            "牛牛订阅b站动态",
             "牛牛关闭B站推送",
             "牛牛关闭b站推送",
         ],
         "command_permissions": command_perm_list(
             command_perm_row(
-                "bilibili_dynamic.enable", "牛牛开启B站推送", "group_moderator"
+                "bilibili_dynamic.enable", "牛牛订阅B站动态", "group_moderator"
             ),
             command_perm_row(
                 "bilibili_dynamic.disable", "牛牛关闭B站推送", "group_moderator"
@@ -46,7 +46,7 @@ __plugin_meta__ = PluginMetadata(
                 "func": "B站动态推送",
                 "trigger_method": "on_cmd",
                 "trigger_scene": SCENE_GROUP,
-                "trigger_condition": "牛牛开启B站推送 / 牛牛关闭B站推送",
+                "trigger_condition": "牛牛订阅B站动态 / 牛牛关闭B站推送",
                 "command_permissions": [
                     "bilibili_dynamic.enable",
                     "bilibili_dynamic.disable",
