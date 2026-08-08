@@ -11,7 +11,7 @@
 ```bash
 uv run pallas plugin community install bilibili_dynamic \
   --repo https://github.com/Blackish-Red/pallas-plugin-bilibili.git \
-  --ref v0.1.3
+  --ref v0.1.4
 ```
 
 安装或更新后重启 Bot，使插件的命令和轮询任务完成注册。
