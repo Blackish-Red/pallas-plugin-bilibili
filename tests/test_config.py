@@ -15,3 +15,10 @@ def test_cookie_is_secret_and_poll_interval_is_bounded() -> None:
     assert Config().poll_interval_sec == 300
     with pytest.raises(ValidationError):
         Config.model_validate({"poll_interval_sec": 30})
+
+
+def test_root_config_module_exposes_plugin_config() -> None:
+    from config import Config as RootConfig
+
+    assert RootConfig is Config
+    assert RootConfig.model_fields["cookie"].json_schema_extra["secret"] is True

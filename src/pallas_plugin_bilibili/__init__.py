@@ -17,6 +17,7 @@ __plugin_meta__ = PluginMetadata(
     usage=join_usage(
         usage_line("牛牛订阅B站动态", "订阅明日方舟官方 B站动态"),
         usage_line("牛牛关闭B站推送", "停止推送明日方舟官方 B站动态"),
+        usage_line("牛牛测试B站推送", "检查 B站接口连通性，不发送动态"),
     ),
     type="application",
     supported_adapters={"~onebot.v11"},
@@ -28,6 +29,8 @@ __plugin_meta__ = PluginMetadata(
             "牛牛订阅b站动态",
             "牛牛关闭B站推送",
             "牛牛关闭b站推送",
+            "牛牛测试B站推送",
+            "牛牛测试b站推送",
         ],
         "command_permissions": command_perm_list(
             command_perm_row(
@@ -36,10 +39,12 @@ __plugin_meta__ = PluginMetadata(
             command_perm_row(
                 "bilibili_dynamic.disable", "牛牛关闭B站推送", "group_moderator"
             ),
+            command_perm_row("bilibili_dynamic.probe", "牛牛测试B站推送", "superuser"),
         ),
         "command_limits": command_limit_list(
             command_limit_row("bilibili_dynamic.enable", 3),
             command_limit_row("bilibili_dynamic.disable", 3),
+            command_limit_row("bilibili_dynamic.probe", 10),
         ),
         "menu_data": [
             {
@@ -53,7 +58,16 @@ __plugin_meta__ = PluginMetadata(
                 ],
                 "brief_des": "订阅或停止明日方舟官方动态",
                 "detail_des": "群内订阅明日方舟官方 B站账号的新动态。",
-            }
+            },
+            {
+                "func": "B站动态连通性检查",
+                "trigger_method": "on_cmd",
+                "trigger_scene": SCENE_GROUP,
+                "trigger_condition": "牛牛测试B站推送",
+                "command_permission": "bilibili_dynamic.probe",
+                "brief_des": "检查 B站动态接口连通性",
+                "detail_des": "不会发送动态或改动投递游标。",
+            },
         ],
     },
 )
