@@ -1,7 +1,12 @@
 from types import SimpleNamespace
 
 import pytest
-from pallas_plugin_bilibili.startup import JOB_ID, poll_job, reschedule_poll_job, start_bilibili_dynamic_poll
+from pallas_plugin_bilibili.startup import (
+    JOB_ID,
+    poll_job,
+    reschedule_poll_job,
+    start_bilibili_dynamic_poll,
+)
 
 
 def test_reschedule_uses_configured_interval(monkeypatch) -> None:
