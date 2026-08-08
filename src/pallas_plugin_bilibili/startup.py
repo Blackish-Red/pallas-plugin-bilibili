@@ -13,7 +13,7 @@ driver = get_driver()
 
 
 async def poll_job() -> None:
-    config = plugin_config()
+    config = plugin_config
     targets = SubscriptionStore().targets()
     if not config.enabled or not targets:
         return
@@ -41,4 +41,4 @@ def reschedule_poll_job(*, interval_sec: int) -> None:
 
 @driver.on_startup
 async def start_bilibili_dynamic_poll() -> None:
-    reschedule_poll_job(interval_sec=plugin_config().poll_interval_sec)
+    reschedule_poll_job(interval_sec=plugin_config.poll_interval_sec)

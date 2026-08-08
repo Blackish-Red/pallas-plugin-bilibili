@@ -1,4 +1,7 @@
-from pallas_plugin_bilibili.startup import JOB_ID, reschedule_poll_job
+from types import SimpleNamespace
+
+import pytest
+from pallas_plugin_bilibili.startup import JOB_ID, poll_job, reschedule_poll_job, start_bilibili_dynamic_poll
 
 
 def test_reschedule_uses_configured_interval(monkeypatch) -> None:
@@ -14,3 +17,34 @@ def test_reschedule_uses_configured_interval(monkeypatch) -> None:
     assert calls[0][1]["replace_existing"] is True
     assert calls[0][1]["seconds"] == 300
     assert calls[0][1]["max_instances"] == 1
+
+
+@pytest.mark.asyncio
+async def test_startup_reads_the_plugin_config_proxy(monkeypatch) -> None:
+    scheduled: list[int] = []
+    monkeypatch.setattr(
+        "pallas_plugin_bilibili.startup.plugin_config",
+        SimpleNamespace(poll_interval_sec=180),
+    )
+    monkeypatch.setattr(
+        "pallas_plugin_bilibili.startup.reschedule_poll_job",
+        lambda *, interval_sec: scheduled.append(interval_sec),
+    )
+
+    await start_bilibili_dynamic_poll()
+
+    assert scheduled == [180]
+
+
+@pytest.mark.asyncio
+async def test_poll_job_reads_the_plugin_config_proxy(monkeypatch) -> None:
+    monkeypatch.setattr(
+        "pallas_plugin_bilibili.startup.plugin_config",
+        SimpleNamespace(enabled=True, cookie=""),
+    )
+    monkeypatch.setattr(
+        "pallas_plugin_bilibili.startup.SubscriptionStore.targets",
+        lambda _self: [],
+    )
+
+    await poll_job()
