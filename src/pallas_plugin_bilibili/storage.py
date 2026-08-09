@@ -18,10 +18,13 @@ class DeliveryCursorStore:
         self._routes = self._load()
 
     def is_primed(self, uid: str, route_key: str) -> bool:
-        return route_key in self._routes.get(uid, {})
+        return bool(self._matching_routes(uid, route_key))
 
     def was_delivered(self, uid: str, route_key: str, dynamic_id: str) -> bool:
-        return dynamic_id in self._routes.get(uid, {}).get(route_key, [])
+        return any(
+            dynamic_id in rows
+            for rows in self._matching_routes(uid, route_key).values()
+        )
 
     def prime(self, uid: str, route_key: str, dynamic_ids: list[str]) -> None:
         self._routes.setdefault(uid, {})[route_key] = list(dict.fromkeys(dynamic_ids))[
@@ -36,6 +39,19 @@ class DeliveryCursorStore:
         rows.insert(0, dynamic_id)
         del rows[_MAX_IDS:]
         self._save()
+
+    def _matching_routes(self, uid: str, route_key: str) -> dict[str, list[str]]:
+        routes = self._routes.get(uid, {})
+        matching = {route_key: routes[route_key]} if route_key in routes else {}
+        if route_key.isdigit():
+            matching.update(
+                {
+                    key: rows
+                    for key, rows in routes.items()
+                    if key.endswith(f":{route_key}")
+                }
+            )
+        return matching
 
     def _load(self) -> dict[str, dict[str, list[str]]]:
         try:

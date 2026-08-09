@@ -41,11 +41,14 @@ class DynamicPushService:
         self, target: PushTarget, uid: int, items: list[DynamicItem]
     ) -> None:
         state_uid = str(uid)
-        if not self.store.is_primed(state_uid, target.key):
-            self.store.prime(state_uid, target.key, [item.dynamic_id for item in items])
+        delivery_key = str(target.group_id)
+        if not self.store.is_primed(state_uid, delivery_key):
+            self.store.prime(
+                state_uid, delivery_key, [item.dynamic_id for item in items]
+            )
             return
         for item in sorted(items, key=lambda row: row.published_at):
-            if self.store.was_delivered(state_uid, target.key, item.dynamic_id):
+            if self.store.was_delivered(state_uid, delivery_key, item.dynamic_id):
                 continue
             rendered = render_dynamic(item)
             image_bytes = None
@@ -60,4 +63,4 @@ class DynamicPushService:
                 target.bot_qq, target.group_id, rendered.text, image_bytes=image_bytes
             )
             if sent:
-                self.store.mark_delivered(state_uid, target.key, item.dynamic_id)
+                self.store.mark_delivered(state_uid, delivery_key, item.dynamic_id)
