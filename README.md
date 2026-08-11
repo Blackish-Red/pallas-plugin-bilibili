@@ -9,7 +9,7 @@
 <p align="center">
   <img alt="社区插件" src="https://img.shields.io/badge/%E7%A4%BE%E5%8C%BA%E6%8F%92%E4%BB%B6-4B5563">
   <img alt="明日方舟" src="https://img.shields.io/badge/%E6%98%8E%E6%97%A5%E6%96%B9%E8%88%9F-4EA94B">
-  <img alt="版本" src="https://img.shields.io/badge/%E7%89%88%E6%9C%AC-v0.1.6-2563EB">
+  <img alt="版本" src="https://img.shields.io/github/v/tag/Blackish-Red/pallas-plugin-bilibili?label=%E7%89%88%E6%9C%AC&color=2563EB">
 </p>
 
 ## 安装方式
