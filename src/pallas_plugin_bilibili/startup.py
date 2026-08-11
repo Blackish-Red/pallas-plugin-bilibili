@@ -3,6 +3,8 @@
 from nonebot import get_driver, logger
 from nonebot_plugin_apscheduler import scheduler
 
+from pallas.api.logging import format_plugin_event
+
 from .client import BilibiliClient
 from .config import plugin_config
 from .service import DynamicPushService
@@ -42,3 +44,9 @@ def reschedule_poll_job(*, interval_sec: int) -> None:
 @driver.on_startup
 async def start_bilibili_dynamic_poll() -> None:
     reschedule_poll_job(interval_sec=plugin_config.poll_interval_sec)
+    logger.info(
+        format_plugin_event(
+            "ready",
+            f"Scheduled Bilibili dynamic poll every {plugin_config.poll_interval_sec} seconds",
+        )
+    )
