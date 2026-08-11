@@ -2,6 +2,7 @@ from collections.abc import Awaitable, Callable
 from typing import Any
 
 from nonebot import logger
+from pallas.api.logging import format_plugin_event
 
 from .config import PushTarget
 from .models import DynamicItem
@@ -64,3 +65,10 @@ class DynamicPushService:
             )
             if sent:
                 self.store.mark_delivered(state_uid, delivery_key, item.dynamic_id)
+                logger.info(
+                    format_plugin_event(
+                        "bilibili_push",
+                        f"Bot [{target.bot_qq}] pushed B站 dynamic [{item.dynamic_id}] "
+                        f"to group [{target.group_id}]",
+                    )
+                )

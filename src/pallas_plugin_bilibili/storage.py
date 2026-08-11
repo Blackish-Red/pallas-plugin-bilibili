@@ -2,7 +2,7 @@ import json
 from pathlib import Path
 
 from nonebot import logger
-
+from pallas.api.logging import format_plugin_event
 from pallas.core.foundation.paths import plugin_data_dir
 
 from .config import PushTarget
@@ -112,6 +112,12 @@ class SubscriptionStore:
             return False
         targets.append(PushTarget(bot_qq=bot_qq, group_id=group_id))
         self._save(targets)
+        logger.info(
+            format_plugin_event(
+                "bilibili_enable",
+                f"Bot [{bot_qq}] enabled B站 dynamic push in group [{group_id}]",
+            )
+        )
         return True
 
     def disable(self, bot_qq: int, group_id: int) -> bool:
@@ -124,6 +130,12 @@ class SubscriptionStore:
         if len(kept) == len(targets):
             return False
         self._save(kept)
+        logger.info(
+            format_plugin_event(
+                "bilibili_disable",
+                f"Bot [{bot_qq}] disabled B站 dynamic push in group [{group_id}]",
+            )
+        )
         return True
 
     @staticmethod
