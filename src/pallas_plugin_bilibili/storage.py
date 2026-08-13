@@ -59,7 +59,7 @@ class DeliveryCursorStore:
         except FileNotFoundError:
             return {}
         except (OSError, ValueError) as e:
-            logger.warning("bilibili dynamic cursor load failed: {}", e)
+            logger.warning("动态投递游标加载失败：{}", e)
             return {}
         routes = raw.get("routes") if isinstance(raw, dict) else None
         if not isinstance(routes, dict):
@@ -94,7 +94,7 @@ class SubscriptionStore:
         except FileNotFoundError:
             return []
         except (OSError, ValueError) as e:
-            logger.warning("bilibili subscriptions load failed: {}", e)
+            logger.warning("订阅列表加载失败：{}", e)
             return []
         rows = raw.get("targets") if isinstance(raw, dict) else None
         if not isinstance(rows, list):

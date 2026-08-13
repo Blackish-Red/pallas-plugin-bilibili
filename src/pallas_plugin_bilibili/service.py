@@ -34,7 +34,11 @@ class DynamicPushService:
 
     async def poll(self, uids: list[int], targets: list[PushTarget]) -> None:
         for uid in uids:
-            items: list[DynamicItem] = await self.client.fetch_latest(uid)
+            try:
+                items: list[DynamicItem] = await self.client.fetch_latest(uid)
+            except Exception as e:
+                logger.warning(f"Bilibili dynamic poll failed for uid [{uid}]: {e}")
+                continue
             for target in targets:
                 await self._deliver_items(target, uid, items)
 
@@ -57,8 +61,9 @@ class DynamicPushService:
                 try:
                     image_bytes = await self.client.download_image(rendered.image_url)
                 except Exception as e:
-                    logger.info(
-                        "bilibili dynamic media fallback id={}: {}", item.dynamic_id, e
+                    logger.warning(
+                        f"Bilibili dynamic [{item.dynamic_id}] media fallback, "
+                        f"image download failed: {e}"
                     )
             sent = await self.send(
                 target.bot_qq, target.group_id, rendered.text, image_bytes=image_bytes
@@ -71,4 +76,9 @@ class DynamicPushService:
                         f"Bot [{target.bot_qq}] pushed B站 dynamic [{item.dynamic_id}] "
                         f"to group [{target.group_id}]",
                     )
+                )
+            else:
+                logger.warning(
+                    f"Bot [{target.bot_qq}] failed to push dynamic [{item.dynamic_id}] "
+                    f"to group [{target.group_id}]"
                 )
