@@ -23,6 +23,7 @@ async def poll_job() -> None:
         service = DynamicPushService(
             client=BilibiliClient(cookie=config.cookie),
             store=DeliveryCursorStore(),
+            forward_multiple_images=config.forward_multiple_images,
         )
         await service.poll([161775300], targets)
     except Exception:

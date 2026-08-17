@@ -9,4 +9,5 @@ class DynamicItem:
     published_at: int
     kind: str
     text: str
-    image_url: str | None = None
+    image_urls: tuple[str, ...] = ()
+    video_url: str | None = None

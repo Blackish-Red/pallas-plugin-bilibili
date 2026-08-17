@@ -23,6 +23,12 @@ class BilibiliRiskControlError(BilibiliApiError):
     pass
 
 
+def _normalize_url(url: str) -> str:
+    if url.startswith("//"):
+        return f"https:{url}"
+    return url
+
+
 class BilibiliClient:
     def __init__(
         self,
@@ -94,18 +100,35 @@ class BilibiliClient:
             return None
         major = dynamic.get("major")
         opus = major.get("opus") if isinstance(major, dict) else None
+        archive = major.get("archive") if isinstance(major, dict) else None
         summary = opus.get("summary") if isinstance(opus, dict) else None
         text = (
             str(summary.get("text") or "")
             if isinstance(summary, dict)
-            else str(dynamic.get("desc", {}).get("text") or "")
+            else str((dynamic.get("desc") or {}).get("text") or "")
         )
-        pics = opus.get("pics") if isinstance(opus, dict) else []
-        image_url = (
-            str(pics[0].get("url") or "")
-            if isinstance(pics, list) and pics and isinstance(pics[0], dict)
-            else ""
-        )
+        image_urls: list[str] = []
+        video_url: str | None = None
+        if isinstance(opus, dict):
+            pics = opus.get("pics")
+            if isinstance(pics, list):
+                image_urls = [
+                    _normalize_url(str(pic.get("url") or ""))
+                    for pic in pics
+                    if isinstance(pic, dict) and pic.get("url")
+                ]
+            if not text and isinstance(opus.get("desc"), dict):
+                text = str(opus.get("desc", {}).get("text") or "")
+        if isinstance(archive, dict):
+            title = str(archive.get("title") or "")
+            if title:
+                text = title
+            cover = _normalize_url(str(archive.get("pic") or archive.get("cover") or ""))
+            if cover:
+                image_urls = [cover]
+            bvid = str(archive.get("bvid") or "")
+            if bvid:
+                video_url = f"https://www.bilibili.com/video/{bvid}"
         return DynamicItem(
             dynamic_id=dynamic_id,
             uid=uid,
@@ -113,7 +136,8 @@ class BilibiliClient:
             published_at=int(author.get("pub_ts") or 0),
             kind=kind,
             text=text,
-            image_url=image_url or None,
+            image_urls=tuple(dict.fromkeys(image_urls)),
+            video_url=video_url,
         )
 
     async def _request_json(self, url: str, **kwargs: Any) -> dict[str, Any]:

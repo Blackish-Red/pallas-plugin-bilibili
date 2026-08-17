@@ -22,6 +22,11 @@ class Config(BaseModel):
         description="是否启用 B站动态轮询。",
         json_schema_extra={"label": "启用 B站动态推送"},
     )
+    forward_multiple_images: bool = Field(
+        default=False,
+        description="是否将动态文字和多张图片包装为一条合并转发消息。",
+        json_schema_extra={"label": "多图使用合并转发"},
+    )
     uids: list[PositiveInt] = Field(
         default_factory=list,
         description="要关注的 B站 UID 列表。",
