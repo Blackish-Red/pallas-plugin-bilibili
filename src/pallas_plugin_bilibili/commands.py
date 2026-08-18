@@ -18,7 +18,7 @@ enable_command = on_message(
     block=True,
 )
 disable_command = on_message(
-    rule=fullmatch("牛牛关闭B站推送", ignorecase=True),
+    rule=fullmatch("牛牛取消订阅B站动态", ignorecase=True),
     permission=group_message_permission_for_command("bilibili_dynamic.disable"),
     priority=5,
     block=True,

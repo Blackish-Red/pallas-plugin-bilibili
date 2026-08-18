@@ -41,6 +41,13 @@ def test_enable_command_uses_single_case_insensitive_subscription_matcher() -> N
     assert rule.msg == ("牛牛订阅b站动态",)
 
 
+def test_disable_command_uses_single_case_insensitive_unsubscribe_matcher() -> None:
+    rule = next(iter(commands.disable_command.rule.checkers)).call
+
+    assert rule.ignorecase is True
+    assert rule.msg == ("牛牛取消订阅b站动态",)
+
+
 @pytest.mark.asyncio
 async def test_probe_reports_latest_dynamic_without_delivery(monkeypatch) -> None:
     client = SimpleNamespace(
