@@ -6,7 +6,7 @@ from nonebot_plugin_apscheduler import scheduler
 from pallas.api.logging import register_plugin_startup_ready
 
 from .client import BilibiliClient
-from .config import plugin_config
+from .config import DEFAULT_UIDS, plugin_config
 from .service import DynamicPushService
 from .storage import DeliveryCursorStore, SubscriptionStore
 
@@ -25,7 +25,7 @@ async def poll_job() -> None:
             store=DeliveryCursorStore(),
             forward_multiple_images=config.forward_multiple_images,
         )
-        await service.poll([161775300], targets)
+        await service.poll(list(config.uids) or list(DEFAULT_UIDS), targets)
     except Exception:
         logger.exception("bilibili dynamic poll failed")
 

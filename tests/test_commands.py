@@ -56,6 +56,11 @@ async def test_probe_reports_latest_dynamic_without_delivery(monkeypatch) -> Non
         )
     )
     monkeypatch.setattr(commands, "BilibiliClient", lambda *, cookie: client)
+    monkeypatch.setattr(
+        commands,
+        "plugin_config",
+        SimpleNamespace(cookie="", uids=[161775300]),
+    )
     ctx = SimpleNamespace(finish=AsyncMock())
 
     await commands.handle_probe(ctx)
@@ -71,10 +76,40 @@ async def test_probe_reports_bilibili_risk_control(monkeypatch) -> None:
         fetch_latest=AsyncMock(side_effect=BilibiliRiskControlError("HTTP 412"))
     )
     monkeypatch.setattr(commands, "BilibiliClient", lambda *, cookie: client)
+    monkeypatch.setattr(
+        commands,
+        "plugin_config",
+        SimpleNamespace(cookie="", uids=[161775300]),
+    )
     ctx = SimpleNamespace(finish=AsyncMock())
 
     await commands.handle_probe(ctx)
 
     ctx.finish.assert_awaited_once_with(
-        "B站动态连接失败：B站风控（HTTP 412），请在控制台填写有效 Cookie。"
+        "B站动态连接失败：UID 161775300 触发B站风控（HTTP 412），"
+        "请在控制台填写有效 Cookie。"
+    )
+
+
+@pytest.mark.asyncio
+async def test_probe_reports_each_configured_uid(monkeypatch) -> None:
+    async def fetch_latest(uid: int):
+        if uid == 2:
+            return []
+        return [DynamicItem("100", uid, "作者", 1, "word", "活动")]
+
+    client = SimpleNamespace(fetch_latest=fetch_latest)
+    monkeypatch.setattr(commands, "BilibiliClient", lambda *, cookie: client)
+    monkeypatch.setattr(
+        commands,
+        "plugin_config",
+        SimpleNamespace(cookie="", uids=[1, 2]),
+    )
+    ctx = SimpleNamespace(finish=AsyncMock())
+
+    await commands.handle_probe(ctx)
+
+    ctx.finish.assert_awaited_once_with(
+        "B站动态连接正常：UID 1，获取到 1 条最新动态（最新 ID 100）；"
+        "UID 2，当前没有可推送的新动态。"
     )
