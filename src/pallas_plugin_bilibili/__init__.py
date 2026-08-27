@@ -15,8 +15,8 @@ __plugin_meta__ = PluginMetadata(
     name="B站动态推送",
     description="将配置的 B站账号新增动态推送到指定群。",
     usage=join_usage(
-        usage_line("牛牛订阅B站动态", "订阅明日方舟官方 B站动态"),
-        usage_line("牛牛取消订阅B站动态", "停止推送明日方舟官方 B站动态"),
+        usage_line("牛牛订阅B站动态", "订阅配置的 B站账号动态"),
+        usage_line("牛牛取消订阅B站动态", "停止推送 B站动态"),
         usage_line("牛牛测试B站推送", "检查 B站接口连通性，不发送动态"),
     ),
     type="application",
@@ -56,8 +56,8 @@ __plugin_meta__ = PluginMetadata(
                     "bilibili_dynamic.enable",
                     "bilibili_dynamic.disable",
                 ],
-                "brief_des": "订阅或停止明日方舟官方动态",
-                "detail_des": "群内订阅明日方舟官方 B站账号的新动态。",
+                "brief_des": "订阅或停止 B站动态推送",
+                "detail_des": "群内订阅控制台配置的 B站账号（默认明日方舟官方号）的新动态。",
             },
             {
                 "func": "B站动态连通性检查",

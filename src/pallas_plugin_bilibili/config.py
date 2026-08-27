@@ -14,6 +14,9 @@ class PushTarget(BaseModel):
         return f"{self.bot_qq}:{self.group_id}"
 
 
+DEFAULT_UIDS: list[int] = [161775300]
+
+
 class Config(BaseModel):
     model_config = ConfigDict(extra="ignore")
 
@@ -28,9 +31,9 @@ class Config(BaseModel):
         json_schema_extra={"label": "多图使用合并转发"},
     )
     uids: list[PositiveInt] = Field(
-        default_factory=list,
-        description="要关注的 B站 UID 列表。",
-        json_schema_extra={"ui_hidden": True},
+        default_factory=lambda: list(DEFAULT_UIDS),
+        description="要关注的 B站 UID 列表（JSON 数组），留空时回退为明日方舟官方号 161775300。",
+        json_schema_extra={"label": "关注的 B站 UID 列表"},
     )
     targets: list[PushTarget] = Field(
         default_factory=list,

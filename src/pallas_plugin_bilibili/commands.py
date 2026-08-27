@@ -4,12 +4,11 @@ from nonebot.rule import fullmatch
 from pallas.api.perm import group_message_permission_for_command
 
 from .client import BilibiliApiError, BilibiliClient, BilibiliRiskControlError
-from .config import plugin_config
+from .config import DEFAULT_UIDS, plugin_config
 from .storage import SubscriptionStore
 
 ENABLE_REPLY = "收到，博士，米诺斯的众英雄为我们守望"
 DISABLE_REPLY = "米诺斯的众英雄已不再守望…"
-_OFFICIAL_UID = 161775300
 
 enable_command = on_message(
     rule=fullmatch("牛牛订阅B站动态", ignorecase=True),
@@ -46,32 +45,38 @@ async def handle_disable(ctx) -> None:
 
 
 async def handle_probe(ctx) -> None:
-    try:
-        items = await BilibiliClient(cookie=plugin_config.cookie).fetch_latest(
-            _OFFICIAL_UID
-        )
-    except BilibiliRiskControlError as error:
-        await ctx.finish(
-            f"B站动态连接失败：B站风控（{error}），请在控制台填写有效 Cookie。"
-        )
-        return
-    except BilibiliApiError as error:
-        logger.warning("bilibili dynamic probe failed: {}", error)
-        await ctx.finish("B站动态连接失败：请求 B站接口失败，请稍后再试。")
-        return
-    except Exception as error:
-        logger.exception("bilibili dynamic probe failed: {}", error)
-        await ctx.finish("B站动态连接失败：请求 B站接口失败，请稍后再试。")
-        return
-    if not items:
-        await ctx.finish(
-            f"B站动态连接正常：UID {_OFFICIAL_UID}，当前没有可推送的新动态。"
-        )
-        return
-    await ctx.finish(
-        f"B站动态连接正常：UID {_OFFICIAL_UID}，获取到 {len(items)} 条最新动态"
-        f"（最新 ID {items[0].dynamic_id}）。"
-    )
+    uids = list(plugin_config.uids) or list(DEFAULT_UIDS)
+    client = BilibiliClient(cookie=plugin_config.cookie)
+    lines: list[str] = []
+    for uid in uids:
+        try:
+            items = await client.fetch_latest(uid)
+        except BilibiliRiskControlError as error:
+            await ctx.finish(
+                f"B站动态连接失败：UID {uid} 触发B站风控（{error}），"
+                "请在控制台填写有效 Cookie。"
+            )
+            return
+        except BilibiliApiError as error:
+            logger.warning("bilibili dynamic probe failed: {}", error)
+            await ctx.finish(
+                f"B站动态连接失败：UID {uid} 请求 B站接口失败，请稍后再试。"
+            )
+            return
+        except Exception as error:
+            logger.exception("bilibili dynamic probe failed: {}", error)
+            await ctx.finish(
+                f"B站动态连接失败：UID {uid} 请求 B站接口失败，请稍后再试。"
+            )
+            return
+        if not items:
+            lines.append(f"UID {uid}，当前没有可推送的新动态")
+        else:
+            lines.append(
+                f"UID {uid}，获取到 {len(items)} 条最新动态"
+                f"（最新 ID {items[0].dynamic_id}）"
+            )
+    await ctx.finish(f"B站动态连接正常：{'；'.join(lines)}。")
 
 
 @enable_command.handle()
