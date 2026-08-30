@@ -40,6 +40,22 @@ class DeliveryCursorStore:
         del rows[_MAX_IDS:]
         self._save()
 
+    def clear_group(self, group_id: int) -> None:
+        """删除某群在所有 UID 下的投递游标，用于重新订阅时重新建立位置。"""
+        route_key = str(group_id)
+        changed = False
+        for rows in self._routes.values():
+            stale = [
+                key for key in rows if key == route_key or key.endswith(f":{route_key}")
+            ]
+            if not stale:
+                continue
+            for key in stale:
+                del rows[key]
+            changed = True
+        if changed:
+            self._save()
+
     def _matching_routes(self, uid: str, route_key: str) -> dict[str, list[str]]:
         routes = self._routes.get(uid, {})
         matching = {route_key: routes[route_key]} if route_key in routes else {}
@@ -112,6 +128,11 @@ class SubscriptionStore:
             return False
         targets.append(PushTarget(bot_qq=bot_qq, group_id=group_id))
         self._save(targets)
+        # 重新订阅视为重新建立位置：清除该群历史投递游标，避免补发关闭期间的动态
+        try:
+            DeliveryCursorStore().clear_group(group_id)
+        except (OSError, ValueError) as e:
+            logger.warning("投递游标清除失败：{}", e)
         logger.info(
             format_plugin_event(
                 "bilibili_enable",

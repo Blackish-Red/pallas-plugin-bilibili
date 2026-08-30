@@ -1,5 +1,7 @@
 """B站动态推送的运行时入口。"""
 
+import asyncio
+
 from nonebot import get_driver, logger
 from nonebot_plugin_apscheduler import scheduler
 
@@ -42,6 +44,40 @@ def reschedule_poll_job(*, interval_sec: int) -> None:
     )
 
 
+async def prime_initial_cursors() -> None:
+    """启动时以当前最新动态静默对齐投递游标，不补推停机期间积压的动态。"""
+    config = plugin_config
+    targets = SubscriptionStore().targets()
+    if not config.enabled or not targets:
+        return
+    try:
+        uids = list(config.uids) or list(DEFAULT_UIDS)
+        client = BilibiliClient(cookie=config.cookie)
+        store = DeliveryCursorStore()
+        aligned = 0
+        for uid in uids:
+            try:
+                items = await client.fetch_latest(uid)
+            except Exception as e:
+                logger.warning(
+                    f"Bilibili dynamic startup prime failed for uid [{uid}]: {e}"
+                )
+                continue
+            if not items:
+                continue
+            ids = [item.dynamic_id for item in items]
+            for target in targets:
+                store.prime(str(uid), str(target.group_id), ids)
+                aligned += 1
+        if aligned:
+            logger.info(
+                "Bilibili 动态启动游标已对齐 [{}] 个投递目标，不补发停机期间积压的动态",
+                aligned,
+            )
+    except Exception:
+        logger.exception("bilibili dynamic startup prime failed")
+
+
 @driver.on_startup
 async def start_bilibili_dynamic_poll() -> None:
     reschedule_poll_job(interval_sec=plugin_config.poll_interval_sec)
@@ -49,3 +85,4 @@ async def start_bilibili_dynamic_poll() -> None:
         "bilibili",
         detail=f"Bilibili 动态轮询调度已注册：每 [{plugin_config.poll_interval_sec}] 秒执行一次",
     )
+    asyncio.create_task(prime_initial_cursors())

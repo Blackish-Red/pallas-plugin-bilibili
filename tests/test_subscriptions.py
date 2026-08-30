@@ -1,7 +1,14 @@
-from pallas_plugin_bilibili.storage import SubscriptionStore
+from types import SimpleNamespace
+
+from pallas_plugin_bilibili.storage import DeliveryCursorStore, SubscriptionStore
 
 
-def test_subscription_store_enables_and_disables_a_group(tmp_path) -> None:
+def test_subscription_store_enables_and_disables_a_group(tmp_path, monkeypatch) -> None:
+    cleared: list[int] = []
+    monkeypatch.setattr(
+        "pallas_plugin_bilibili.storage.DeliveryCursorStore",
+        lambda: SimpleNamespace(clear_group=lambda group_id: cleared.append(group_id)),
+    )
     store = SubscriptionStore(tmp_path / "subscriptions.json")
 
     assert store.enable(10001, 733291779) is True
@@ -11,3 +18,43 @@ def test_subscription_store_enables_and_disables_a_group(tmp_path) -> None:
     ]
     assert store.disable(10001, 733291779) is True
     assert store.targets() == []
+
+
+def test_enable_clears_group_cursor_to_reestablish_position(
+    tmp_path, monkeypatch
+) -> None:
+    cleared: list[int] = []
+    monkeypatch.setattr(
+        "pallas_plugin_bilibili.storage.DeliveryCursorStore",
+        lambda: SimpleNamespace(clear_group=lambda group_id: cleared.append(group_id)),
+    )
+    store = SubscriptionStore(tmp_path / "subscriptions.json")
+
+    assert store.enable(10001, 733291779) is True
+    assert cleared == [733291779]
+
+    # 已订阅时重复 enable 不重复清游标
+    assert store.enable(10001, 733291779) is False
+    assert cleared == [733291779]
+
+
+def test_clear_group_removes_route_for_group(tmp_path) -> None:
+    store = DeliveryCursorStore(tmp_path / "cursors.json")
+    store.prime("161775300", "733291779", ["a"])
+    store.prime("161775300", "88888888", ["b"])
+    store.prime("13148307", "733291779", ["c"])
+
+    store.clear_group(733291779)
+
+    assert not store.is_primed("161775300", "733291779")
+    assert store.is_primed("161775300", "88888888")
+    assert not store.is_primed("13148307", "733291779")
+
+
+def test_clear_group_removes_legacy_bot_qq_route(tmp_path) -> None:
+    store = DeliveryCursorStore(tmp_path / "cursors.json")
+    store.prime("161775300", "10001:733291779", ["a"])
+
+    store.clear_group(733291779)
+
+    assert not store.is_primed("161775300", "733291779")
