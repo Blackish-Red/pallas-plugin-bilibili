@@ -1,4 +1,5 @@
 import re
+from types import SimpleNamespace
 
 from nonebot import logger, on_message
 from nonebot.rule import fullmatch, startswith
@@ -160,7 +161,11 @@ async def _disable_handler(bot, event) -> None:
 
 @probe_command.handle()
 async def _probe_handler(bot, event) -> None:
-    await handle_probe(probe_command)
+    group_id = getattr(event, "group_id", None)
+    if group_id is None:
+        return
+    ctx = SimpleNamespace(bot=bot, group_id=group_id, finish=probe_command.finish)
+    await handle_probe(ctx)
 
 
 @add_uid_command.handle()
@@ -172,7 +177,8 @@ async def _add_uid_handler(bot, event) -> None:
     if not uids:
         await add_uid_command.finish("请提供要添加的 B站 UID，例如：牛牛B站添加UID 12345")
         return
-    await handle_add_uid(add_uid_command, uids)
+    ctx = SimpleNamespace(bot=bot, group_id=group_id, finish=add_uid_command.finish)
+    await handle_add_uid(ctx, uids)
 
 
 @remove_uid_command.handle()
@@ -184,7 +190,8 @@ async def _remove_uid_handler(bot, event) -> None:
     if not uids:
         await remove_uid_command.finish("请提供要删除的 B站 UID，例如：牛牛B站删除UID 12345")
         return
-    await handle_remove_uid(remove_uid_command, uids)
+    ctx = SimpleNamespace(bot=bot, group_id=group_id, finish=remove_uid_command.finish)
+    await handle_remove_uid(ctx, uids)
 
 
 @view_uid_command.handle()
@@ -192,4 +199,5 @@ async def _view_uid_handler(bot, event) -> None:
     group_id = getattr(event, "group_id", None)
     if group_id is None:
         return
-    await handle_view_uid(view_uid_command)
+    ctx = SimpleNamespace(bot=bot, group_id=group_id, finish=view_uid_command.finish)
+    await handle_view_uid(ctx)
