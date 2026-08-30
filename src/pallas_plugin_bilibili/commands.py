@@ -68,7 +68,10 @@ async def handle_disable(ctx) -> None:
 
 
 async def handle_probe(ctx) -> None:
-    uids = list(plugin_config.uids) or list(DEFAULT_UIDS)
+    if ctx.group_id is None:
+        return
+    group_uids = SubscriptionStore().group_uids(int(ctx.bot.self_id), ctx.group_id)
+    uids = group_uids or list(plugin_config.uids) or list(DEFAULT_UIDS)
     client = BilibiliClient(cookie=plugin_config.cookie)
     lines: list[str] = []
     for uid in uids:

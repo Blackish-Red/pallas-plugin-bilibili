@@ -61,7 +61,14 @@ async def test_probe_reports_latest_dynamic_without_delivery(monkeypatch) -> Non
         "plugin_config",
         SimpleNamespace(cookie="", uids=[161775300]),
     )
-    ctx = SimpleNamespace(finish=AsyncMock())
+    monkeypatch.setattr(
+        commands,
+        "SubscriptionStore",
+        lambda: SimpleNamespace(group_uids=lambda bot_qq, group_id: None),
+    )
+    ctx = SimpleNamespace(
+        bot=SimpleNamespace(self_id=10001), group_id=733291779, finish=AsyncMock()
+    )
 
     await commands.handle_probe(ctx)
 
@@ -81,7 +88,14 @@ async def test_probe_reports_bilibili_risk_control(monkeypatch) -> None:
         "plugin_config",
         SimpleNamespace(cookie="", uids=[161775300]),
     )
-    ctx = SimpleNamespace(finish=AsyncMock())
+    monkeypatch.setattr(
+        commands,
+        "SubscriptionStore",
+        lambda: SimpleNamespace(group_uids=lambda bot_qq, group_id: None),
+    )
+    ctx = SimpleNamespace(
+        bot=SimpleNamespace(self_id=10001), group_id=733291779, finish=AsyncMock()
+    )
 
     await commands.handle_probe(ctx)
 
@@ -105,7 +119,14 @@ async def test_probe_reports_each_configured_uid(monkeypatch) -> None:
         "plugin_config",
         SimpleNamespace(cookie="", uids=[1, 2]),
     )
-    ctx = SimpleNamespace(finish=AsyncMock())
+    monkeypatch.setattr(
+        commands,
+        "SubscriptionStore",
+        lambda: SimpleNamespace(group_uids=lambda bot_qq, group_id: None),
+    )
+    ctx = SimpleNamespace(
+        bot=SimpleNamespace(self_id=10001), group_id=733291779, finish=AsyncMock()
+    )
 
     await commands.handle_probe(ctx)
 
@@ -195,4 +216,33 @@ async def test_view_uid_falls_back_to_global(monkeypatch) -> None:
 
     ctx.finish.assert_awaited_once_with(
         "当前群未单独设置 B站 UID，使用全局配置：161775300"
+    )
+
+
+@pytest.mark.asyncio
+async def test_probe_uses_group_uids_when_set(monkeypatch) -> None:
+    client = SimpleNamespace(
+        fetch_latest=AsyncMock(
+            return_value=[DynamicItem("100", 12345, "作者", 1, "word", "活动")]
+        )
+    )
+    monkeypatch.setattr(commands, "BilibiliClient", lambda *, cookie: client)
+    monkeypatch.setattr(
+        commands,
+        "plugin_config",
+        SimpleNamespace(cookie="", uids=[161775300]),
+    )
+    monkeypatch.setattr(
+        commands,
+        "SubscriptionStore",
+        lambda: SimpleNamespace(group_uids=lambda bot_qq, group_id: [12345]),
+    )
+    ctx = SimpleNamespace(
+        bot=SimpleNamespace(self_id=10001), group_id=733291779, finish=AsyncMock()
+    )
+
+    await commands.handle_probe(ctx)
+
+    ctx.finish.assert_awaited_once_with(
+        "B站动态连接正常：UID 12345，获取到 1 条最新动态（最新 ID 100）。"
     )
