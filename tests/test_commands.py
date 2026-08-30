@@ -113,3 +113,86 @@ async def test_probe_reports_each_configured_uid(monkeypatch) -> None:
         "B站动态连接正常：UID 1，获取到 1 条最新动态（最新 ID 100）；"
         "UID 2，当前没有可推送的新动态。"
     )
+
+
+@pytest.mark.asyncio
+async def test_add_uid_appends_and_replies(monkeypatch) -> None:
+    store = SimpleNamespace(add_group_uid=lambda bot_qq, group_id, uid: True)
+    monkeypatch.setattr(commands, "SubscriptionStore", lambda: store)
+    ctx = SimpleNamespace(
+        bot=SimpleNamespace(self_id=10001), group_id=733291779, finish=AsyncMock()
+    )
+
+    await commands.handle_add_uid(ctx, [12345])
+
+    ctx.finish.assert_awaited_once_with("已为当前群添加 B站 UID：12345")
+
+
+@pytest.mark.asyncio
+async def test_add_uid_reports_when_already_present(monkeypatch) -> None:
+    store = SimpleNamespace(add_group_uid=lambda bot_qq, group_id, uid: False)
+    monkeypatch.setattr(commands, "SubscriptionStore", lambda: store)
+    ctx = SimpleNamespace(
+        bot=SimpleNamespace(self_id=10001), group_id=733291779, finish=AsyncMock()
+    )
+
+    await commands.handle_add_uid(ctx, [12345])
+
+    ctx.finish.assert_awaited_once_with("这些 B站 UID 已在当前群关注列表中")
+
+
+@pytest.mark.asyncio
+async def test_remove_uid_removes_and_replies(monkeypatch) -> None:
+    store = SimpleNamespace(remove_group_uid=lambda bot_qq, group_id, uid: True)
+    monkeypatch.setattr(commands, "SubscriptionStore", lambda: store)
+    ctx = SimpleNamespace(
+        bot=SimpleNamespace(self_id=10001), group_id=733291779, finish=AsyncMock()
+    )
+
+    await commands.handle_remove_uid(ctx, [12345])
+
+    ctx.finish.assert_awaited_once_with("已为当前群删除 B站 UID：12345")
+
+
+@pytest.mark.asyncio
+async def test_remove_uid_reports_when_absent(monkeypatch) -> None:
+    store = SimpleNamespace(remove_group_uid=lambda bot_qq, group_id, uid: False)
+    monkeypatch.setattr(commands, "SubscriptionStore", lambda: store)
+    ctx = SimpleNamespace(
+        bot=SimpleNamespace(self_id=10001), group_id=733291779, finish=AsyncMock()
+    )
+
+    await commands.handle_remove_uid(ctx, [12345])
+
+    ctx.finish.assert_awaited_once_with("这些 B站 UID 不在当前群关注列表中")
+
+
+@pytest.mark.asyncio
+async def test_view_uid_shows_group_list(monkeypatch) -> None:
+    store = SimpleNamespace(group_uids=lambda bot_qq, group_id: [1, 2])
+    monkeypatch.setattr(commands, "SubscriptionStore", lambda: store)
+    ctx = SimpleNamespace(
+        bot=SimpleNamespace(self_id=10001), group_id=733291779, finish=AsyncMock()
+    )
+
+    await commands.handle_view_uid(ctx)
+
+    ctx.finish.assert_awaited_once_with("当前群关注的 B站 UID：1、2")
+
+
+@pytest.mark.asyncio
+async def test_view_uid_falls_back_to_global(monkeypatch) -> None:
+    store = SimpleNamespace(group_uids=lambda bot_qq, group_id: None)
+    monkeypatch.setattr(commands, "SubscriptionStore", lambda: store)
+    monkeypatch.setattr(
+        commands, "plugin_config", SimpleNamespace(uids=[161775300])
+    )
+    ctx = SimpleNamespace(
+        bot=SimpleNamespace(self_id=10001), group_id=733291779, finish=AsyncMock()
+    )
+
+    await commands.handle_view_uid(ctx)
+
+    ctx.finish.assert_awaited_once_with(
+        "当前群未单独设置 B站 UID，使用全局配置：161775300"
+    )
