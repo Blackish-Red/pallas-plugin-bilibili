@@ -8,6 +8,7 @@ class PushTarget(BaseModel):
 
     bot_qq: PositiveInt
     group_id: PositiveInt
+    uids: list[PositiveInt] | None = None
 
     @property
     def key(self) -> str:
