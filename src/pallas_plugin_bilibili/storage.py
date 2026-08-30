@@ -159,6 +159,45 @@ class SubscriptionStore:
         )
         return True
 
+    def group_uids(self, bot_qq: int, group_id: int) -> list[int] | None:
+        for target in self.targets():
+            if target.bot_qq == bot_qq and target.group_id == group_id:
+                return target.uids
+        return None
+
+    def set_group_uids(self, bot_qq: int, group_id: int, uids: list[int]) -> bool:
+        targets = self.targets()
+        for target in targets:
+            if target.bot_qq == bot_qq and target.group_id == group_id:
+                target.uids = uids
+                self._save(targets)
+                return True
+        return False
+
+    def add_group_uid(self, bot_qq: int, group_id: int, uid: int) -> bool:
+        targets = self.targets()
+        for target in targets:
+            if target.bot_qq == bot_qq and target.group_id == group_id:
+                current = target.uids or []
+                if uid in current:
+                    return False
+                target.uids = current + [uid]
+                self._save(targets)
+                return True
+        return False
+
+    def remove_group_uid(self, bot_qq: int, group_id: int, uid: int) -> bool:
+        targets = self.targets()
+        for target in targets:
+            if target.bot_qq == bot_qq and target.group_id == group_id:
+                current = target.uids or []
+                if uid not in current:
+                    return False
+                target.uids = [u for u in current if u != uid]
+                self._save(targets)
+                return True
+        return False
+
     @staticmethod
     def _parse_target(row: object) -> PushTarget | None:
         try:
