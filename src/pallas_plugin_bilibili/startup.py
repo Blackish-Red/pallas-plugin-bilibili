@@ -56,11 +56,15 @@ async def prime_initial_cursors() -> None:
     if not config.enabled or not targets:
         return
     try:
-        uids = list(config.uids) or list(DEFAULT_UIDS)
+        uid_targets: dict[int, list[PushTarget]] = {}
+        for target in targets:
+            uids = target.uids or list(config.uids) or list(DEFAULT_UIDS)
+            for uid in uids:
+                uid_targets.setdefault(uid, []).append(target)
         client = BilibiliClient(cookie=config.cookie)
         store = DeliveryCursorStore()
         aligned = 0
-        for uid in uids:
+        for uid, targets_for_uid in uid_targets.items():
             try:
                 items = await client.fetch_latest(uid)
             except Exception as e:
@@ -71,7 +75,7 @@ async def prime_initial_cursors() -> None:
             if not items:
                 continue
             ids = [item.dynamic_id for item in items]
-            for target in targets:
+            for target in targets_for_uid:
                 store.prime(str(uid), str(target.group_id), ids)
                 aligned += 1
         if aligned:

@@ -248,3 +248,31 @@ async def test_prime_initial_cursors_noop_when_disabled(monkeypatch) -> None:
     )
 
     await prime_initial_cursors()
+
+
+@pytest.mark.asyncio
+async def test_prime_initial_cursors_groups_by_uid(monkeypatch, tmp_path) -> None:
+    from unittest.mock import AsyncMock
+
+    from pallas_plugin_bilibili.config import PushTarget
+    from pallas_plugin_bilibili.models import DynamicItem
+    from pallas_plugin_bilibili.storage import DeliveryCursorStore
+
+    item = DynamicItem("100", 1, "作者", 1, "word", "活动")
+    client = type("Client", (), {"fetch_latest": AsyncMock(return_value=[item])})()
+    store = DeliveryCursorStore(tmp_path / "delivery-cursors.json")
+    group_a = PushTarget(bot_qq=10001, group_id=733291779, uids=[1])
+    group_b = PushTarget(bot_qq=10001, group_id=88888888, uids=[1])
+    _prime_env(
+        monkeypatch,
+        config=SimpleNamespace(enabled=True, cookie="", uids=[999]),
+        targets=[group_a, group_b],
+        client=client,
+        store=store,
+    )
+
+    await prime_initial_cursors()
+
+    assert store.is_primed("1", "733291779")
+    assert store.is_primed("1", "88888888")
+    assert not store.is_primed("999", "733291779")
