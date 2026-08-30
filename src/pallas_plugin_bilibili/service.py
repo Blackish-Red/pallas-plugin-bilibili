@@ -58,8 +58,8 @@ class DynamicPushService:
         items: list[DynamicItem] = await self.client.fetch_latest(uid)
         await self._deliver_items(target, uid, items)
 
-    async def poll(self, uids: list[int], targets: list[PushTarget]) -> None:
-        for uid in uids:
+    async def poll(self, uid_targets: dict[int, list[PushTarget]]) -> None:
+        for uid, targets in uid_targets.items():
             try:
                 items: list[DynamicItem] = await self.client.fetch_latest(uid)
             except Exception as e:
