@@ -110,6 +110,9 @@ async def handle_add_uid(ctx, uids: list[int]) -> None:
     if ctx.group_id is None:
         return
     store = SubscriptionStore()
+    if store.group_uids(int(ctx.bot.self_id), ctx.group_id) is None:
+        await ctx.finish("当前群尚未订阅 B站动态，请先发送：牛牛订阅B站动态")
+        return
     added = [u for u in uids if store.add_group_uid(int(ctx.bot.self_id), ctx.group_id, u)]
     if not added:
         await ctx.finish("这些 B站 UID 已在当前群关注列表中")
@@ -121,6 +124,9 @@ async def handle_remove_uid(ctx, uids: list[int]) -> None:
     if ctx.group_id is None:
         return
     store = SubscriptionStore()
+    if store.group_uids(int(ctx.bot.self_id), ctx.group_id) is None:
+        await ctx.finish("当前群尚未订阅 B站动态，请先发送：牛牛订阅B站动态")
+        return
     removed = [u for u in uids if store.remove_group_uid(int(ctx.bot.self_id), ctx.group_id, u)]
     if not removed:
         await ctx.finish("这些 B站 UID 不在当前群关注列表中")
@@ -132,6 +138,9 @@ async def handle_view_uid(ctx) -> None:
     if ctx.group_id is None:
         return
     group_uids = SubscriptionStore().group_uids(int(ctx.bot.self_id), ctx.group_id)
+    if group_uids is None:
+        await ctx.finish("当前群尚未订阅 B站动态，请先发送：牛牛订阅B站动态")
+        return
     if group_uids:
         await ctx.finish(f"当前群关注的 B站 UID：{'、'.join(str(u) for u in group_uids)}")
         return

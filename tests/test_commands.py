@@ -138,7 +138,9 @@ async def test_probe_reports_each_configured_uid(monkeypatch) -> None:
 
 @pytest.mark.asyncio
 async def test_add_uid_appends_and_replies(monkeypatch) -> None:
-    store = SimpleNamespace(add_group_uid=lambda bot_qq, group_id, uid: True)
+    store = SimpleNamespace(
+        group_uids=lambda bot_qq, group_id: [], add_group_uid=lambda bot_qq, group_id, uid: True
+    )
     monkeypatch.setattr(commands, "SubscriptionStore", lambda: store)
     ctx = SimpleNamespace(
         bot=SimpleNamespace(self_id=10001), group_id=733291779, finish=AsyncMock()
@@ -151,7 +153,9 @@ async def test_add_uid_appends_and_replies(monkeypatch) -> None:
 
 @pytest.mark.asyncio
 async def test_add_uid_reports_when_already_present(monkeypatch) -> None:
-    store = SimpleNamespace(add_group_uid=lambda bot_qq, group_id, uid: False)
+    store = SimpleNamespace(
+        group_uids=lambda bot_qq, group_id: [], add_group_uid=lambda bot_qq, group_id, uid: False
+    )
     monkeypatch.setattr(commands, "SubscriptionStore", lambda: store)
     ctx = SimpleNamespace(
         bot=SimpleNamespace(self_id=10001), group_id=733291779, finish=AsyncMock()
@@ -164,7 +168,9 @@ async def test_add_uid_reports_when_already_present(monkeypatch) -> None:
 
 @pytest.mark.asyncio
 async def test_remove_uid_removes_and_replies(monkeypatch) -> None:
-    store = SimpleNamespace(remove_group_uid=lambda bot_qq, group_id, uid: True)
+    store = SimpleNamespace(
+        group_uids=lambda bot_qq, group_id: [], remove_group_uid=lambda bot_qq, group_id, uid: True
+    )
     monkeypatch.setattr(commands, "SubscriptionStore", lambda: store)
     ctx = SimpleNamespace(
         bot=SimpleNamespace(self_id=10001), group_id=733291779, finish=AsyncMock()
@@ -177,7 +183,9 @@ async def test_remove_uid_removes_and_replies(monkeypatch) -> None:
 
 @pytest.mark.asyncio
 async def test_remove_uid_reports_when_absent(monkeypatch) -> None:
-    store = SimpleNamespace(remove_group_uid=lambda bot_qq, group_id, uid: False)
+    store = SimpleNamespace(
+        group_uids=lambda bot_qq, group_id: [], remove_group_uid=lambda bot_qq, group_id, uid: False
+    )
     monkeypatch.setattr(commands, "SubscriptionStore", lambda: store)
     ctx = SimpleNamespace(
         bot=SimpleNamespace(self_id=10001), group_id=733291779, finish=AsyncMock()
@@ -203,7 +211,7 @@ async def test_view_uid_shows_group_list(monkeypatch) -> None:
 
 @pytest.mark.asyncio
 async def test_view_uid_falls_back_to_global(monkeypatch) -> None:
-    store = SimpleNamespace(group_uids=lambda bot_qq, group_id: None)
+    store = SimpleNamespace(group_uids=lambda bot_qq, group_id: [])
     monkeypatch.setattr(commands, "SubscriptionStore", lambda: store)
     monkeypatch.setattr(
         commands, "plugin_config", SimpleNamespace(uids=[161775300])
@@ -217,6 +225,19 @@ async def test_view_uid_falls_back_to_global(monkeypatch) -> None:
     ctx.finish.assert_awaited_once_with(
         "当前群未单独设置 B站 UID，使用全局配置：161775300"
     )
+
+
+@pytest.mark.asyncio
+async def test_view_uid_hints_subscribe_when_group_unsubscribed(monkeypatch) -> None:
+    store = SimpleNamespace(group_uids=lambda bot_qq, group_id: None)
+    monkeypatch.setattr(commands, "SubscriptionStore", lambda: store)
+    ctx = SimpleNamespace(
+        bot=SimpleNamespace(self_id=10001), group_id=733291779, finish=AsyncMock()
+    )
+
+    await commands.handle_view_uid(ctx)
+
+    ctx.finish.assert_awaited_once_with("当前群尚未订阅 B站动态，请先发送：牛牛订阅B站动态")
 
 
 @pytest.mark.asyncio
