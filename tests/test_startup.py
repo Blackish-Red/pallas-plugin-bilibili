@@ -66,14 +66,14 @@ async def test_poll_job_reads_the_plugin_config_proxy(monkeypatch) -> None:
 async def test_poll_job_polls_configured_uids(monkeypatch) -> None:
     from pallas_plugin_bilibili.config import PushTarget
 
-    polled: list[tuple[list[int], list[PushTarget]]] = []
+    polled: list[dict[int, list[PushTarget]]] = []
 
     class FakeService:
         def __init__(self, **kwargs) -> None:
             pass
 
-        async def poll(self, uids, targets) -> None:
-            polled.append((uids, targets))
+        async def poll(self, uid_targets) -> None:
+            polled.append(uid_targets)
 
     target = PushTarget(bot_qq=10001, group_id=733291779)
     monkeypatch.setattr(
@@ -92,21 +92,21 @@ async def test_poll_job_polls_configured_uids(monkeypatch) -> None:
 
     await poll_job()
 
-    assert polled == [([111, 222], [target])]
+    assert polled == [{111: [target], 222: [target]}]
 
 
 @pytest.mark.asyncio
 async def test_poll_job_falls_back_to_default_uid_when_config_empty(monkeypatch) -> None:
     from pallas_plugin_bilibili.config import DEFAULT_UIDS, PushTarget
 
-    polled: list[list[int]] = []
+    polled: list[dict[int, list[PushTarget]]] = []
 
     class FakeService:
         def __init__(self, **kwargs) -> None:
             pass
 
-        async def poll(self, uids, targets) -> None:
-            polled.append(uids)
+        async def poll(self, uid_targets) -> None:
+            polled.append(uid_targets)
 
     target = PushTarget(bot_qq=10001, group_id=733291779)
     monkeypatch.setattr(
@@ -123,7 +123,41 @@ async def test_poll_job_falls_back_to_default_uid_when_config_empty(monkeypatch)
 
     await poll_job()
 
-    assert polled == [list(DEFAULT_UIDS)]
+    assert polled == [{DEFAULT_UIDS[0]: [target]}]
+
+
+@pytest.mark.asyncio
+async def test_poll_job_groups_targets_by_uid(monkeypatch) -> None:
+    from pallas_plugin_bilibili.config import PushTarget
+
+    polled: list[dict[int, list[PushTarget]]] = []
+
+    class FakeService:
+        def __init__(self, **kwargs) -> None:
+            pass
+
+        async def poll(self, uid_targets) -> None:
+            polled.append(uid_targets)
+
+    group_a = PushTarget(bot_qq=10001, group_id=733291779, uids=[1, 2])
+    group_b = PushTarget(bot_qq=10001, group_id=88888888, uids=[2, 3])
+    monkeypatch.setattr(
+        "pallas_plugin_bilibili.startup.plugin_config",
+        SimpleNamespace(
+            enabled=True, cookie="", forward_multiple_images=False, uids=[999]
+        ),
+    )
+    monkeypatch.setattr(
+        "pallas_plugin_bilibili.startup.SubscriptionStore.targets",
+        lambda _self: [group_a, group_b],
+    )
+    monkeypatch.setattr(
+        "pallas_plugin_bilibili.startup.DynamicPushService", FakeService
+    )
+
+    await poll_job()
+
+    assert polled == [{1: [group_a], 2: [group_a, group_b], 3: [group_b]}]
 
 
 def _prime_env(monkeypatch, *, config, targets, client, store) -> None:
@@ -214,3 +248,33 @@ async def test_prime_initial_cursors_noop_when_disabled(monkeypatch) -> None:
     )
 
     await prime_initial_cursors()
+
+
+@pytest.mark.asyncio
+async def test_prime_initial_cursors_groups_by_uid(monkeypatch, tmp_path) -> None:
+    from unittest.mock import AsyncMock
+
+    from pallas_plugin_bilibili.config import PushTarget
+    from pallas_plugin_bilibili.models import DynamicItem
+    from pallas_plugin_bilibili.storage import DeliveryCursorStore
+
+    item = DynamicItem("100", 1, "作者", 1, "word", "活动")
+    client = type("Client", (), {"fetch_latest": AsyncMock(return_value=[item])})()
+    store = DeliveryCursorStore(tmp_path / "delivery-cursors.json")
+    group_a = PushTarget(bot_qq=10001, group_id=733291779, uids=[1])
+    group_b = PushTarget(bot_qq=10001, group_id=88888888, uids=[2])
+    _prime_env(
+        monkeypatch,
+        config=SimpleNamespace(enabled=True, cookie="", uids=[999]),
+        targets=[group_a, group_b],
+        client=client,
+        store=store,
+    )
+
+    await prime_initial_cursors()
+
+    assert store.is_primed("1", "733291779")
+    assert store.is_primed("2", "88888888")
+    assert not store.is_primed("2", "733291779")
+    assert not store.is_primed("1", "88888888")
+    assert not store.is_primed("999", "733291779")

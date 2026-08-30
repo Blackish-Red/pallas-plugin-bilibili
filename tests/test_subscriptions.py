@@ -58,3 +58,50 @@ def test_clear_group_removes_legacy_bot_qq_route(tmp_path) -> None:
     store.clear_group(733291779)
 
     assert not store.is_primed("161775300", "733291779")
+
+
+def test_group_uids_returns_none_when_not_set(tmp_path) -> None:
+    store = SubscriptionStore(tmp_path / "subscriptions.json")
+    store.enable(10001, 733291779)
+
+    assert store.group_uids(10001, 733291779) is None
+
+
+def test_set_group_uids_replaces_list(tmp_path) -> None:
+    store = SubscriptionStore(tmp_path / "subscriptions.json")
+    store.enable(10001, 733291779)
+
+    assert store.set_group_uids(10001, 733291779, [1, 2]) is True
+    assert store.group_uids(10001, 733291779) == [1, 2]
+
+    assert store.set_group_uids(10001, 733291779, [3]) is True
+    assert store.group_uids(10001, 733291779) == [3]
+
+
+def test_add_group_uid_appends_and_dedupes(tmp_path) -> None:
+    store = SubscriptionStore(tmp_path / "subscriptions.json")
+    store.enable(10001, 733291779)
+
+    assert store.add_group_uid(10001, 733291779, 1) is True
+    assert store.add_group_uid(10001, 733291779, 2) is True
+    assert store.add_group_uid(10001, 733291779, 1) is False
+    assert store.group_uids(10001, 733291779) == [1, 2]
+
+
+def test_remove_group_uid_removes_and_reports(tmp_path) -> None:
+    store = SubscriptionStore(tmp_path / "subscriptions.json")
+    store.enable(10001, 733291779)
+    store.set_group_uids(10001, 733291779, [1, 2])
+
+    assert store.remove_group_uid(10001, 733291779, 1) is True
+    assert store.remove_group_uid(10001, 733291779, 1) is False
+    assert store.group_uids(10001, 733291779) == [2]
+
+
+def test_group_uid_methods_noop_for_unsubscribed_group(tmp_path) -> None:
+    store = SubscriptionStore(tmp_path / "subscriptions.json")
+
+    assert store.set_group_uids(10001, 733291779, [1]) is False
+    assert store.add_group_uid(10001, 733291779, 1) is False
+    assert store.remove_group_uid(10001, 733291779, 1) is False
+    assert store.group_uids(10001, 733291779) is None

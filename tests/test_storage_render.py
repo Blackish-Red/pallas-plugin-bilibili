@@ -49,3 +49,13 @@ def test_render_video_uses_video_url_and_cover() -> None:
     assert "视频标题" in rendered.text
     assert "https://www.bilibili.com/video/BV1xx411c7mD" in rendered.text
     assert rendered.image_urls == ("https://i0.hdslb.com/video.jpg",)
+
+
+def test_push_target_accepts_optional_uids() -> None:
+    from pallas_plugin_bilibili.config import PushTarget
+
+    target = PushTarget(bot_qq=10001, group_id=733291779, uids=[1, 2])
+    assert target.uids == [1, 2]
+
+    plain = PushTarget(bot_qq=10001, group_id=733291779)
+    assert plain.uids is None

@@ -70,7 +70,7 @@ async def test_poll_deduplicates_same_dynamic_across_bots_in_one_group(
         store.prime(str(item.uid), target.key, ["old"])
     service = DynamicPushService(client=client, store=store, send=send)
 
-    await service.poll([item.uid], targets)
+    await service.poll({item.uid: targets})
 
     send.assert_awaited_once()
 
