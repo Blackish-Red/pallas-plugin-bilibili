@@ -262,7 +262,7 @@ async def test_prime_initial_cursors_groups_by_uid(monkeypatch, tmp_path) -> Non
     client = type("Client", (), {"fetch_latest": AsyncMock(return_value=[item])})()
     store = DeliveryCursorStore(tmp_path / "delivery-cursors.json")
     group_a = PushTarget(bot_qq=10001, group_id=733291779, uids=[1])
-    group_b = PushTarget(bot_qq=10001, group_id=88888888, uids=[1])
+    group_b = PushTarget(bot_qq=10001, group_id=88888888, uids=[2])
     _prime_env(
         monkeypatch,
         config=SimpleNamespace(enabled=True, cookie="", uids=[999]),
@@ -274,5 +274,7 @@ async def test_prime_initial_cursors_groups_by_uid(monkeypatch, tmp_path) -> Non
     await prime_initial_cursors()
 
     assert store.is_primed("1", "733291779")
-    assert store.is_primed("1", "88888888")
+    assert store.is_primed("2", "88888888")
+    assert not store.is_primed("2", "733291779")
+    assert not store.is_primed("1", "88888888")
     assert not store.is_primed("999", "733291779")
