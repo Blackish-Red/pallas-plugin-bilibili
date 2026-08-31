@@ -4,6 +4,7 @@ from pathlib import Path
 from nonebot import logger
 from pallas.api.logging import format_plugin_event
 from pallas.core.foundation.paths import plugin_data_dir
+from pydantic import ValidationError
 
 from .config import PushTarget
 
@@ -159,6 +160,12 @@ class SubscriptionStore:
         )
         return True
 
+    def is_subscribed(self, bot_qq: int, group_id: int) -> bool:
+        return any(
+            target.bot_qq == bot_qq and target.group_id == group_id
+            for target in self.targets()
+        )
+
     def group_uids(self, bot_qq: int, group_id: int) -> list[int] | None:
         for target in self.targets():
             if target.bot_qq == bot_qq and target.group_id == group_id:
@@ -169,9 +176,7 @@ class SubscriptionStore:
         targets = self.targets()
         for target in targets:
             if target.bot_qq == bot_qq and target.group_id == group_id:
-                target.uids = uids
-                self._save(targets)
-                return True
+                return self._assign_uids(target, uids, targets)
         return False
 
     def add_group_uid(self, bot_qq: int, group_id: int, uid: int) -> bool:
@@ -181,9 +186,7 @@ class SubscriptionStore:
                 current = target.uids or []
                 if uid in current:
                     return False
-                target.uids = current + [uid]
-                self._save(targets)
-                return True
+                return self._assign_uids(target, current + [uid], targets)
         return False
 
     def remove_group_uid(self, bot_qq: int, group_id: int, uid: int) -> bool:
@@ -193,10 +196,21 @@ class SubscriptionStore:
                 current = target.uids or []
                 if uid not in current:
                     return False
-                target.uids = [u for u in current if u != uid]
-                self._save(targets)
-                return True
+                return self._assign_uids(
+                    target, [u for u in current if u != uid], targets
+                )
         return False
+
+    def _assign_uids(
+        self, target: PushTarget, uids: list[int], targets: list[PushTarget]
+    ) -> bool:
+        """校验后落盘；非法 uid（如 0/负数）拒绝写入，避免污染订阅文件。"""
+        try:
+            target.uids = list(dict.fromkeys(uids))
+        except ValidationError:
+            return False
+        self._save(targets)
+        return True
 
     @staticmethod
     def _parse_target(row: object) -> PushTarget | None:
