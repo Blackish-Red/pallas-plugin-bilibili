@@ -159,6 +159,12 @@ class SubscriptionStore:
         )
         return True
 
+    def is_subscribed(self, bot_qq: int, group_id: int) -> bool:
+        return any(
+            target.bot_qq == bot_qq and target.group_id == group_id
+            for target in self.targets()
+        )
+
     def group_uids(self, bot_qq: int, group_id: int) -> list[int] | None:
         for target in self.targets():
             if target.bot_qq == bot_qq and target.group_id == group_id:
