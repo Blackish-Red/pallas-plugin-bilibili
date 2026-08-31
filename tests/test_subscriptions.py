@@ -105,3 +105,26 @@ def test_group_uid_methods_noop_for_unsubscribed_group(tmp_path) -> None:
     assert store.add_group_uid(10001, 733291779, 1) is False
     assert store.remove_group_uid(10001, 733291779, 1) is False
     assert store.group_uids(10001, 733291779) is None
+
+
+def test_is_subscribed_true_for_subscribed_false_for_unknown(tmp_path) -> None:
+    store = SubscriptionStore(tmp_path / "subscriptions.json")
+    store.enable(10001, 733291779)
+
+    assert store.is_subscribed(10001, 733291779) is True
+    assert store.is_subscribed(10001, 626266902) is False
+
+
+def test_add_uid_rejects_non_positive_instead_of_poisoning_file(tmp_path) -> None:
+    path = tmp_path / "subscriptions.json"
+    store = SubscriptionStore(path)
+    store.enable(10001, 733291779)
+
+    assert store.add_group_uid(10001, 733291779, 0) is False
+    assert store.group_uids(10001, 733291779) in (None, [])
+
+    reloaded = SubscriptionStore(path)
+    assert (reloaded.targets()[0].bot_qq, reloaded.targets()[0].group_id) == (
+        10001,
+        733291779,
+    )

@@ -14,7 +14,7 @@ DISABLE_REPLY = "米诺斯的众英雄已不再守望…"
 
 
 def _parse_uids(text: str) -> list[int]:
-    return [int(m) for m in re.findall(r"\d+", text)]
+    return [uid for token in re.findall(r"\d+", text) if (uid := int(token)) > 0]
 
 enable_command = on_message(
     rule=fullmatch("牛牛订阅B站动态", ignorecase=True),

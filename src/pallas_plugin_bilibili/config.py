@@ -4,7 +4,7 @@ from pallas.console.webui import install_hot_reload_config, plugin_config_proxy
 
 
 class PushTarget(BaseModel):
-    model_config = ConfigDict(extra="forbid")
+    model_config = ConfigDict(extra="forbid", validate_assignment=True)
 
     bot_qq: PositiveInt
     group_id: PositiveInt
