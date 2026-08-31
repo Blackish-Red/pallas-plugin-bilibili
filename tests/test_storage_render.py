@@ -11,6 +11,22 @@ def test_cursor_primes_each_target_independently(tmp_path) -> None:
     assert not store.was_delivered("161775300", "10002:733291779", "new")
 
 
+def test_prime_with_empty_page_does_not_mark_primed(tmp_path) -> None:
+    store = DeliveryCursorStore(tmp_path / "delivery-cursors.json")
+    store.prime("161775300", "733291779", [])
+
+    assert not store.is_primed("161775300", "733291779")
+
+
+def test_is_primed_ignores_empty_route_rows(tmp_path) -> None:
+    store = DeliveryCursorStore(tmp_path / "delivery-cursors.json")
+    store.prime("161775300", "733291779", ["a", "b"])
+    store._routes.setdefault("161775300", {})["88888888"] = []
+
+    assert store.is_primed("161775300", "733291779")
+    assert not store.is_primed("161775300", "88888888")
+
+
 def test_render_includes_dynamic_link_and_keeps_image_urls() -> None:
     item = DynamicItem(
         "100",
