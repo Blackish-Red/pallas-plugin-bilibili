@@ -19,7 +19,8 @@ class DeliveryCursorStore:
         self._routes = self._load()
 
     def is_primed(self, uid: str, route_key: str) -> bool:
-        return bool(self._matching_routes(uid, route_key))
+        # 空数组游标不视为已建立位置，避免空页 prime 后整页被误判为新动态
+        return any(self._matching_routes(uid, route_key).values())
 
     def was_delivered(self, uid: str, route_key: str, dynamic_id: str) -> bool:
         return any(
@@ -28,6 +29,8 @@ class DeliveryCursorStore:
         )
 
     def prime(self, uid: str, route_key: str, dynamic_ids: list[str]) -> None:
+        if not dynamic_ids:
+            return
         self._routes.setdefault(uid, {})[route_key] = list(dict.fromkeys(dynamic_ids))[
             :_MAX_IDS
         ]
