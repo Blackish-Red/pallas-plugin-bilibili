@@ -1,4 +1,3 @@
-from collections.abc import Awaitable, Callable
 from typing import Any
 
 from nonebot import logger
@@ -17,42 +16,37 @@ class DynamicPushService:
         *,
         client: Any,
         store: DeliveryCursorStore,
-        send: Callable[..., Awaitable[bool]] | None = None,
-        forward_multiple_images: bool = False,
     ) -> None:
         self.client = client
         self.store = store
-        self.send = send or self._send_group_message
-        self.forward_multiple_images = forward_multiple_images
-
-    @staticmethod
-    async def _send_group_message(*args: Any, **kwargs: Any) -> bool:
-        from pallas.api.platform import send_group_message_as_bot
-
-        return await send_group_message_as_bot(*args, **kwargs)
 
     async def _send_group_forward(
         self, bot_qq: int, group_id: int, text: str, image_bytes: list[bytes]
     ) -> bool:
         from pallas.api.platform import send_group_forward_message_as_bot
 
-        content = Message(text)
-        for raw in image_bytes:
-            content += MessageSegment.image(raw)
-        return await send_group_forward_message_as_bot(
-            bot_qq,
-            group_id,
-            [
-                {
-                    "type": "node",
-                    "data": {
-                        "name": "B站动态",
-                        "uin": str(bot_qq),
-                        "content": str(content),
-                    },
-                }
-            ],
+        nodes: list[dict[str, Any]] = [
+            {
+                "type": "node",
+                "data": {
+                    "name": "B站动态",
+                    "uin": str(bot_qq),
+                    "content": str(Message(text)),
+                },
+            }
+        ]
+        nodes.extend(
+            {
+                "type": "node",
+                "data": {
+                    "name": "B站动态",
+                    "uin": str(bot_qq),
+                    "content": str(Message(MessageSegment.image(raw))),
+                },
+            }
+            for raw in image_bytes
         )
+        return await send_group_forward_message_as_bot(bot_qq, group_id, nodes)
 
     async def poll_target_uid(self, target: PushTarget, uid: int) -> None:
         items: list[DynamicItem] = await self.client.fetch_latest(uid)
@@ -91,17 +85,9 @@ class DynamicPushService:
                         f"Bilibili dynamic [{item.dynamic_id}] media fallback, "
                         f"image download failed: {e}"
                     )
-            if self.forward_multiple_images and len(image_bytes) > 1:
-                sent = await self._send_group_forward(
-                    target.bot_qq, target.group_id, rendered.text, image_bytes
-                )
-            else:
-                sent = await self.send(
-                    target.bot_qq,
-                    target.group_id,
-                    rendered.text,
-                    image_bytes=image_bytes,
-                )
+            sent = await self._send_group_forward(
+                target.bot_qq, target.group_id, rendered.text, image_bytes
+            )
             if sent:
                 self.store.mark_delivered(state_uid, delivery_key, item.dynamic_id)
                 logger.info(
