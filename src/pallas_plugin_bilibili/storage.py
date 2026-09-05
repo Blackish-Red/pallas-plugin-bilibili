@@ -49,16 +49,26 @@ class DeliveryCursorStore:
         route_key = str(group_id)
         changed = False
         for rows in self._routes.values():
-            stale = [
-                key for key in rows if key == route_key or key.endswith(f":{route_key}")
-            ]
-            if not stale:
-                continue
-            for key in stale:
-                del rows[key]
-            changed = True
+            changed = self._drop_route_rows(rows, route_key) or changed
         if changed:
             self._save()
+
+    def clear_route(self, uid: int, group_id: int) -> None:
+        """删除某 UID 在某群下的投递游标，用于群级关注列表变更后重新建立位置。"""
+        rows = self._routes.get(str(uid))
+        if rows and self._drop_route_rows(rows, str(group_id)):
+            self._save()
+
+    @staticmethod
+    def _drop_route_rows(rows: dict[str, list[str]], route_key: str) -> bool:
+        stale = [
+            key for key in rows if key == route_key or key.endswith(f":{route_key}")
+        ]
+        if not stale:
+            return False
+        for key in stale:
+            del rows[key]
+        return True
 
     def _matching_routes(self, uid: str, route_key: str) -> dict[str, list[str]]:
         routes = self._routes.get(uid, {})
@@ -209,10 +219,20 @@ class SubscriptionStore:
     ) -> bool:
         """校验后落盘；非法 uid（如 0/负数）拒绝写入，避免污染订阅文件。"""
         try:
+            previous = target.uids or []
             target.uids = list(dict.fromkeys(uids))
         except ValidationError:
             return False
         self._save(targets)
+        added = [uid for uid in target.uids if uid not in previous]
+        if added:
+            # 新加入的 uid 重新建立位置，避免补发其历史积压动态
+            try:
+                cursor = DeliveryCursorStore()
+                for uid in added:
+                    cursor.clear_route(uid, target.group_id)
+            except (OSError, ValueError) as e:
+                logger.warning("投递游标清除失败：{}", e)
         return True
 
     @staticmethod
