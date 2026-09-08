@@ -67,6 +67,7 @@ __plugin_meta__ = PluginMetadata(
         "menu_data": [
             {
                 "func": "B站动态推送",
+                "group": "订阅控制",
                 "trigger_method": "on_cmd",
                 "trigger_scene": SCENE_GROUP,
                 "trigger_condition": "牛牛订阅B站动态 / 牛牛取消订阅B站动态",
@@ -79,6 +80,7 @@ __plugin_meta__ = PluginMetadata(
             },
             {
                 "func": "B站动态连通性检查",
+                "group": "连通性",
                 "trigger_method": "on_cmd",
                 "trigger_scene": SCENE_GROUP,
                 "trigger_condition": "牛牛测试B站推送",
@@ -88,6 +90,7 @@ __plugin_meta__ = PluginMetadata(
             },
             {
                 "func": "B站动态 UID 管理",
+                "group": "UID 管理",
                 "trigger_method": "on_cmd",
                 "trigger_scene": SCENE_GROUP,
                 "trigger_condition": "牛牛B站添加UID / 牛牛B站删除UID / 牛牛B站查看UID",
