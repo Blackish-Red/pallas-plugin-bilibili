@@ -9,6 +9,9 @@ from .models import DynamicItem
 from .render import render_dynamic
 from .storage import DeliveryCursorStore
 
+# B站「空间动态」接口单页返回上限；整页全部未投递视为游标滞后
+_MAX_PAGE_ITEMS = 12
+
 
 class DynamicPushService:
     def __init__(
@@ -72,9 +75,24 @@ class DynamicPushService:
                 state_uid, delivery_key, [item.dynamic_id for item in items]
             )
             return
-        for item in sorted(items, key=lambda row: row.published_at):
-            if self.store.was_delivered(state_uid, delivery_key, item.dynamic_id):
-                continue
+        pending = [
+            item
+            for item in items
+            if not self.store.was_delivered(state_uid, delivery_key, item.dynamic_id)
+        ]
+        # 安全阀：一页全部未投递通常意味着游标严重滞后（prime 失败/停机积压），
+        # 此时静默对齐当前位置，不整页补推，避免一次性洪水
+        if len(items) >= _MAX_PAGE_ITEMS and len(pending) == len(items):
+            self.store.prime(
+                state_uid, delivery_key, [item.dynamic_id for item in items]
+            )
+            logger.warning(
+                f"Bilibili dynamic [{uid}] cursor lagged with [{len(pending)}] "
+                f"undelivered items for group [{target.group_id}], "
+                "realigned without pushing"
+            )
+            return
+        for item in sorted(pending, key=lambda row: row.published_at):
             rendered = render_dynamic(item)
             image_bytes: list[bytes] = []
             for url in rendered.image_urls:

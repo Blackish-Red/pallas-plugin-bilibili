@@ -70,6 +70,10 @@ async def prime_initial_cursors() -> None:
                 logger.warning(
                     f"Bilibili dynamic startup prime failed for uid [{uid}]: {e}"
                 )
+                # 无法确认当前位置：丢弃该 UID 的旧游标，
+                # 否则恢复后首次成功拉取会被误判为「已建立位置」而整页补推积压动态
+                for target in targets_for_uid:
+                    store.clear_route(uid, target.group_id)
                 continue
             if not items:
                 continue
