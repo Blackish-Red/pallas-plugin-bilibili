@@ -278,3 +278,35 @@ async def test_prime_initial_cursors_groups_by_uid(monkeypatch, tmp_path) -> Non
     assert not store.is_primed("2", "733291779")
     assert not store.is_primed("1", "88888888")
     assert not store.is_primed("999", "733291779")
+
+
+@pytest.mark.asyncio
+async def test_prime_initial_cursors_drops_stale_cursor_on_fetch_failure(
+    monkeypatch, tmp_path
+) -> None:
+    """prime 拉取失败时清掉旧游标，避免恢复后整页补推积压动态。"""
+    from unittest.mock import AsyncMock
+
+    from pallas_plugin_bilibili.config import PushTarget
+    from pallas_plugin_bilibili.storage import DeliveryCursorStore
+
+    client = type(
+        "Client",
+        (),
+        {"fetch_latest": AsyncMock(side_effect=RuntimeError("-352"))},
+    )()
+    store = DeliveryCursorStore(tmp_path / "delivery-cursors.json")
+    target = PushTarget(bot_qq=10001, group_id=1085338862)
+    store.prime("13148307", target.key, ["stale-1", "stale-2"])
+    assert store.is_primed("13148307", target.key)
+    _prime_env(
+        monkeypatch,
+        config=SimpleNamespace(enabled=True, cookie="", uids=[13148307]),
+        targets=[target],
+        client=client,
+        store=store,
+    )
+
+    await prime_initial_cursors()
+
+    assert not store.is_primed("13148307", target.key)

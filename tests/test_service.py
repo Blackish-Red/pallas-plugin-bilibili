@@ -163,3 +163,56 @@ async def test_poll_always_uses_forward_even_for_single_image(
     assert len(nodes) == 2
     assert "活动预告" in nodes[0]["data"]["content"]
     assert "[CQ:image" in nodes[1]["data"]["content"]
+
+
+@pytest.mark.asyncio
+async def test_poll_realigns_instead_of_flooding_on_lagged_cursor(
+    tmp_path, monkeypatch
+) -> None:
+    """游标严重滞后（整页动态全部未投递）时静默对齐，不整页补推。"""
+    page = [
+        DynamicItem(str(1000 + i), 13148307, "作者", i, "draw", f"动态{i}")
+        for i in range(12)
+    ]
+    client = type("Client", (), {"fetch_latest": AsyncMock(return_value=page)})()
+    forwarded = AsyncMock(return_value=True)
+    monkeypatch.setattr(
+        "pallas.api.platform.send_group_forward_message_as_bot", forwarded
+    )
+    store = DeliveryCursorStore(tmp_path / "state.json")
+    target = PushTarget(bot_qq=10001, group_id=1085338862)
+    # 只有旧游标（prime 失败遗留），不含本页任何动态
+    store.prime(str(13148307), target.key, ["stale-1", "stale-2"])
+    service = DynamicPushService(client=client, store=store)
+
+    await service.poll({13148307: [target]})
+
+    forwarded.assert_not_awaited()
+    for item in page:
+        assert store.was_delivered(str(13148307), str(target.group_id), item.dynamic_id)
+
+
+@pytest.mark.asyncio
+async def test_poll_still_pushes_when_only_few_items_are_new(
+    tmp_path, monkeypatch
+) -> None:
+    """正常增量（少量新动态）仍应逐条推送，安全阀不误伤。"""
+    page = [
+        DynamicItem(str(2000 + i), 13148307, "作者", i, "draw", f"动态{i}")
+        for i in range(12)
+    ]
+    client = type("Client", (), {"fetch_latest": AsyncMock(return_value=page)})()
+    forwarded = AsyncMock(return_value=True)
+    monkeypatch.setattr(
+        "pallas.api.platform.send_group_forward_message_as_bot", forwarded
+    )
+    store = DeliveryCursorStore(tmp_path / "state.json")
+    target = PushTarget(bot_qq=10001, group_id=1085338862)
+    store.prime(
+        str(13148307), target.key, [item.dynamic_id for item in page[2:]] + ["old"]
+    )
+    service = DynamicPushService(client=client, store=store)
+
+    await service.poll({13148307: [target]})
+
+    assert forwarded.await_count == 2
