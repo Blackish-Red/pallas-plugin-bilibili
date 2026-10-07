@@ -1,13 +1,20 @@
+import asyncio
 from types import SimpleNamespace
 
 import pytest
-from pallas_plugin_bilibili.startup import (
-    JOB_ID,
-    poll_job,
-    prime_initial_cursors,
-    reschedule_poll_job,
-    start_bilibili_dynamic_poll,
-)
+from apscheduler.schedulers.asyncio import AsyncIOScheduler
+
+from pallas_plugin_bilibili import startup
+from pallas_plugin_bilibili.config import PushTarget
+from pallas_plugin_bilibili.models import DynamicItem
+from pallas_plugin_bilibili.storage import DeliveryCursorStore
+
+
+@pytest.fixture(autouse=True)
+def isolate_primed_routes():
+    startup._primed_routes.clear()
+    yield
+    startup._primed_routes.clear()
 
 
 def test_reschedule_uses_configured_interval(monkeypatch) -> None:
@@ -17,296 +24,260 @@ def test_reschedule_uses_configured_interval(monkeypatch) -> None:
         lambda *args, **kwargs: calls.append((args, kwargs)),
     )
 
-    reschedule_poll_job(interval_sec=300)
+    startup.reschedule_poll_job(interval_sec=300)
 
-    assert calls[0][1]["id"] == JOB_ID
+    assert calls[0][1]["id"] == startup.JOB_ID
     assert calls[0][1]["replace_existing"] is True
     assert calls[0][1]["seconds"] == 300
     assert calls[0][1]["max_instances"] == 1
+    assert calls[0][1]["coalesce"] is True
 
 
 @pytest.mark.asyncio
-async def test_startup_reads_the_plugin_config_proxy(monkeypatch) -> None:
+async def test_startup_does_not_fetch_dynamics(monkeypatch) -> None:
     scheduled: list[int] = []
-    spawned: list[str] = []
+    fetched: list[int] = []
+
+    class Client:
+        async def fetch_latest(self, uid):
+            fetched.append(uid)
+            return []
+
     monkeypatch.setattr(
-        "pallas_plugin_bilibili.startup.plugin_config",
-        SimpleNamespace(poll_interval_sec=180),
+        startup,
+        "plugin_config",
+        SimpleNamespace(poll_interval_sec=180, enabled=True, cookie="", uids=[123]),
     )
     monkeypatch.setattr(
-        "pallas_plugin_bilibili.startup.reschedule_poll_job",
+        startup,
+        "reschedule_poll_job",
         lambda *, interval_sec: scheduled.append(interval_sec),
     )
+    monkeypatch.setattr(startup, "BilibiliClient", lambda **_: Client())
     monkeypatch.setattr(
-        "pallas_plugin_bilibili.startup.asyncio.create_task",
-        lambda coro: spawned.append("prime"),
+        startup,
+        "SubscriptionStore",
+        lambda: SimpleNamespace(targets=lambda: [PushTarget(bot_qq=1, group_id=2)]),
     )
 
-    await start_bilibili_dynamic_poll()
+    await startup.start_bilibili_dynamic_poll()
+    await asyncio.sleep(0)
 
     assert scheduled == [180]
-    assert spawned == ["prime"]
+    assert fetched == []
 
 
-@pytest.mark.asyncio
-async def test_poll_job_reads_the_plugin_config_proxy(monkeypatch) -> None:
+def configure_poll(monkeypatch, tmp_path, targets, responses, *, enabled=True):
+    store = DeliveryCursorStore(tmp_path / "cursors.json")
+
+    class Client:
+        async def fetch_latest(self, uid):
+            response = responses[uid].pop(0)
+            if isinstance(response, Exception):
+                raise response
+            return response
+
     monkeypatch.setattr(
-        "pallas_plugin_bilibili.startup.plugin_config",
-        SimpleNamespace(enabled=True, cookie=""),
+        startup,
+        "plugin_config",
+        SimpleNamespace(enabled=enabled, cookie="", uids=[]),
     )
     monkeypatch.setattr(
-        "pallas_plugin_bilibili.startup.SubscriptionStore.targets",
-        lambda _self: [],
-    )
-
-    await poll_job()
-
-
-@pytest.mark.asyncio
-async def test_poll_job_polls_configured_uids(monkeypatch) -> None:
-    from pallas_plugin_bilibili.config import PushTarget
-
-    polled: list[dict[int, list[PushTarget]]] = []
-
-    class FakeService:
-        def __init__(self, **kwargs) -> None:
-            pass
-
-        async def poll(self, uid_targets) -> None:
-            polled.append(uid_targets)
-
-    target = PushTarget(bot_qq=10001, group_id=733291779)
-    monkeypatch.setattr(
-        "pallas_plugin_bilibili.startup.plugin_config",
-        SimpleNamespace(
-            enabled=True, cookie="", forward_multiple_images=False, uids=[111, 222]
-        ),
-    )
-    monkeypatch.setattr(
-        "pallas_plugin_bilibili.startup.SubscriptionStore.targets",
-        lambda _self: [target],
-    )
-    monkeypatch.setattr(
-        "pallas_plugin_bilibili.startup.DynamicPushService", FakeService
-    )
-
-    await poll_job()
-
-    assert polled == [{111: [target], 222: [target]}]
-
-
-@pytest.mark.asyncio
-async def test_poll_job_falls_back_to_default_uid_when_config_empty(monkeypatch) -> None:
-    from pallas_plugin_bilibili.config import DEFAULT_UIDS, PushTarget
-
-    polled: list[dict[int, list[PushTarget]]] = []
-
-    class FakeService:
-        def __init__(self, **kwargs) -> None:
-            pass
-
-        async def poll(self, uid_targets) -> None:
-            polled.append(uid_targets)
-
-    target = PushTarget(bot_qq=10001, group_id=733291779)
-    monkeypatch.setattr(
-        "pallas_plugin_bilibili.startup.plugin_config",
-        SimpleNamespace(enabled=True, cookie="", forward_multiple_images=False, uids=[]),
-    )
-    monkeypatch.setattr(
-        "pallas_plugin_bilibili.startup.SubscriptionStore.targets",
-        lambda _self: [target],
-    )
-    monkeypatch.setattr(
-        "pallas_plugin_bilibili.startup.DynamicPushService", FakeService
-    )
-
-    await poll_job()
-
-    assert polled == [{DEFAULT_UIDS[0]: [target]}]
-
-
-@pytest.mark.asyncio
-async def test_poll_job_groups_targets_by_uid(monkeypatch) -> None:
-    from pallas_plugin_bilibili.config import PushTarget
-
-    polled: list[dict[int, list[PushTarget]]] = []
-
-    class FakeService:
-        def __init__(self, **kwargs) -> None:
-            pass
-
-        async def poll(self, uid_targets) -> None:
-            polled.append(uid_targets)
-
-    group_a = PushTarget(bot_qq=10001, group_id=733291779, uids=[1, 2])
-    group_b = PushTarget(bot_qq=10001, group_id=88888888, uids=[2, 3])
-    monkeypatch.setattr(
-        "pallas_plugin_bilibili.startup.plugin_config",
-        SimpleNamespace(
-            enabled=True, cookie="", forward_multiple_images=False, uids=[999]
-        ),
-    )
-    monkeypatch.setattr(
-        "pallas_plugin_bilibili.startup.SubscriptionStore.targets",
-        lambda _self: [group_a, group_b],
-    )
-    monkeypatch.setattr(
-        "pallas_plugin_bilibili.startup.DynamicPushService", FakeService
-    )
-
-    await poll_job()
-
-    assert polled == [{1: [group_a], 2: [group_a, group_b], 3: [group_b]}]
-
-
-def _prime_env(monkeypatch, *, config, targets, client, store) -> None:
-    monkeypatch.setattr("pallas_plugin_bilibili.startup.plugin_config", config)
-    monkeypatch.setattr(
-        "pallas_plugin_bilibili.startup.SubscriptionStore",
+        startup,
+        "SubscriptionStore",
         lambda: SimpleNamespace(targets=lambda: targets),
     )
-    monkeypatch.setattr(
-        "pallas_plugin_bilibili.startup.BilibiliClient",
-        lambda **kwargs: client,
-    )
-    monkeypatch.setattr(
-        "pallas_plugin_bilibili.startup.DeliveryCursorStore",
-        lambda: store,
-    )
+    monkeypatch.setattr(startup, "DeliveryCursorStore", lambda: store)
+    monkeypatch.setattr(startup, "BilibiliClient", lambda **_: Client())
+    sent: list[str] = []
+
+    async def send(_self, _bot, _group, text, _images):
+        sent.append(text)
+        return True
+
+    monkeypatch.setattr(startup.DynamicPushService, "_send_group_forward", send)
+    return store, sent
+
+
+def item(dynamic_id: str) -> DynamicItem:
+    return DynamicItem(dynamic_id, 1, "作者", 1, "word", dynamic_id)
 
 
 @pytest.mark.asyncio
-async def test_prime_initial_cursors_marks_current_page_as_seen(
+async def test_first_poll_silently_aligns_short_history_then_sends_new_item(
     monkeypatch, tmp_path
 ) -> None:
-    from unittest.mock import AsyncMock
-
-    from pallas_plugin_bilibili.config import PushTarget
-    from pallas_plugin_bilibili.models import DynamicItem
-    from pallas_plugin_bilibili.storage import DeliveryCursorStore
-
-    item = DynamicItem("100", 161775300, "明日方舟", 1, "draw", "活动预告")
-    client = type("Client", (), {"fetch_latest": AsyncMock(return_value=[item])})()
-    store = DeliveryCursorStore(tmp_path / "delivery-cursors.json")
-    target = PushTarget(bot_qq=10001, group_id=733291779)
-    _prime_env(
+    target = PushTarget(bot_qq=1, group_id=2, uids=[123])
+    store, sent = configure_poll(
         monkeypatch,
-        config=SimpleNamespace(enabled=True, cookie="", uids=[161775300]),
-        targets=[target],
-        client=client,
-        store=store,
+        tmp_path,
+        [target],
+        {
+            123: [
+                RuntimeError("-352"),
+                [],
+                [item("old-a"), item("old-b")],
+                [item("new"), item("old-a"), item("old-b")],
+            ]
+        },
     )
+    store.prime("123", "2", ["stale"])
 
-    await prime_initial_cursors()
+    await startup.poll_job()
+    assert not store.is_primed("123", "2")
+    await startup.poll_job()
+    assert not store.is_primed("123", "2")
+    await startup.poll_job()
+    assert store.was_delivered("123", "2", "old-a")
+    assert sent == []
+    await startup.poll_job()
 
-    assert store.is_primed(str(item.uid), str(target.group_id))
-    assert store.was_delivered(str(item.uid), str(target.group_id), item.dynamic_id)
+    assert len(sent) == 1
+    assert "\nnew\n" in sent[0]
 
 
 @pytest.mark.asyncio
-async def test_prime_initial_cursors_keeps_cursor_on_empty_page(
+async def test_poll_deduplicates_requests_by_uid_across_groups(
     monkeypatch, tmp_path
 ) -> None:
-    from unittest.mock import AsyncMock
-
-    from pallas_plugin_bilibili.config import PushTarget
-    from pallas_plugin_bilibili.storage import DeliveryCursorStore
-
-    client = type("Client", (), {"fetch_latest": AsyncMock(return_value=[])})()
-    store = DeliveryCursorStore(tmp_path / "delivery-cursors.json")
-    store.prime("161775300", "733291779", ["old"])
-    target = PushTarget(bot_qq=10001, group_id=733291779)
-    _prime_env(
+    group_a = PushTarget(bot_qq=1, group_id=2, uids=[123, 456])
+    group_b = PushTarget(bot_qq=1, group_id=3, uids=[123])
+    store, _ = configure_poll(
         monkeypatch,
-        config=SimpleNamespace(enabled=True, cookie="", uids=[161775300]),
-        targets=[target],
-        client=client,
-        store=store,
+        tmp_path,
+        [group_a, group_b],
+        {123: [[item("a")]], 456: [[item("b")]]},
     )
+    calls = []
+    original = startup.BilibiliClient
 
-    await prime_initial_cursors()
+    class CountingClient:
+        async def fetch_latest(self, uid):
+            calls.append(uid)
+            return await original().fetch_latest(uid)
 
-    assert store.was_delivered("161775300", str(target.group_id), "old")
+    monkeypatch.setattr(startup, "BilibiliClient", lambda **_: CountingClient())
+
+    await startup.poll_job()
+
+    assert calls == [123, 456]
+    assert store.is_primed("123", "2")
+    assert store.is_primed("123", "3")
+    assert store.is_primed("456", "2")
 
 
 @pytest.mark.asyncio
-async def test_prime_initial_cursors_noop_when_disabled(monkeypatch) -> None:
-    def unexpected_client(**kwargs):
-        raise AssertionError("should not fetch when disabled")
-
+@pytest.mark.parametrize(
+    "enabled,targets", [(False, [PushTarget(bot_qq=1, group_id=2)]), (True, [])]
+)
+async def test_poll_skips_disabled_or_unsubscribed(
+    monkeypatch, tmp_path, enabled, targets
+):
+    store, _ = configure_poll(monkeypatch, tmp_path, targets, {}, enabled=enabled)
     monkeypatch.setattr(
-        "pallas_plugin_bilibili.startup.plugin_config",
-        SimpleNamespace(enabled=False, cookie="", uids=[161775300]),
-    )
-    monkeypatch.setattr(
-        "pallas_plugin_bilibili.startup.SubscriptionStore",
-        lambda: SimpleNamespace(targets=list),
-    )
-    monkeypatch.setattr(
-        "pallas_plugin_bilibili.startup.BilibiliClient", unexpected_client
+        startup,
+        "BilibiliClient",
+        lambda **_: (_ for _ in ()).throw(AssertionError("unexpected network client")),
     )
 
-    await prime_initial_cursors()
+    await startup.poll_job()
+
+    assert not store._routes
 
 
 @pytest.mark.asyncio
-async def test_prime_initial_cursors_groups_by_uid(monkeypatch, tmp_path) -> None:
-    from unittest.mock import AsyncMock
-
-    from pallas_plugin_bilibili.config import PushTarget
-    from pallas_plugin_bilibili.models import DynamicItem
-    from pallas_plugin_bilibili.storage import DeliveryCursorStore
-
-    item = DynamicItem("100", 1, "作者", 1, "word", "活动")
-    client = type("Client", (), {"fetch_latest": AsyncMock(return_value=[item])})()
-    store = DeliveryCursorStore(tmp_path / "delivery-cursors.json")
-    group_a = PushTarget(bot_qq=10001, group_id=733291779, uids=[1])
-    group_b = PushTarget(bot_qq=10001, group_id=88888888, uids=[2])
-    _prime_env(
-        monkeypatch,
-        config=SimpleNamespace(enabled=True, cookie="", uids=[999]),
-        targets=[group_a, group_b],
-        client=client,
-        store=store,
-    )
-
-    await prime_initial_cursors()
-
-    assert store.is_primed("1", "733291779")
-    assert store.is_primed("2", "88888888")
-    assert not store.is_primed("2", "733291779")
-    assert not store.is_primed("1", "88888888")
-    assert not store.is_primed("999", "733291779")
-
-
-@pytest.mark.asyncio
-async def test_prime_initial_cursors_drops_stale_cursor_on_fetch_failure(
+async def test_cursor_clear_failure_skips_route_and_retries_next_poll(
     monkeypatch, tmp_path
 ) -> None:
-    """prime 拉取失败时清掉旧游标，避免恢复后整页补推积压动态。"""
-    from unittest.mock import AsyncMock
+    target = PushTarget(bot_qq=1, group_id=2, uids=[123])
+    store, _ = configure_poll(monkeypatch, tmp_path, [target], {123: [[item("old")]]})
+    original_clear = store.clear_route
+    attempts = 0
 
-    from pallas_plugin_bilibili.config import PushTarget
-    from pallas_plugin_bilibili.storage import DeliveryCursorStore
+    def fail_once(uid, group_id):
+        nonlocal attempts
+        attempts += 1
+        if attempts == 1:
+            raise OSError("storage unavailable")
+        original_clear(uid, group_id)
 
-    client = type(
-        "Client",
-        (),
-        {"fetch_latest": AsyncMock(side_effect=RuntimeError("-352"))},
-    )()
-    store = DeliveryCursorStore(tmp_path / "delivery-cursors.json")
-    target = PushTarget(bot_qq=10001, group_id=1085338862)
-    store.prime("13148307", target.key, ["stale-1", "stale-2"])
-    assert store.is_primed("13148307", target.key)
-    _prime_env(
+    monkeypatch.setattr(store, "clear_route", fail_once)
+    calls = []
+    original_client = startup.BilibiliClient
+
+    class CountingClient:
+        async def fetch_latest(self, uid):
+            calls.append(uid)
+            return await original_client().fetch_latest(uid)
+
+    monkeypatch.setattr(startup, "BilibiliClient", lambda **_: CountingClient())
+
+    await startup.poll_job()
+    assert calls == []
+    await startup.poll_job()
+
+    assert attempts == 2
+    assert calls == [123]
+    assert store.is_primed("123", "2")
+
+
+@pytest.mark.asyncio
+async def test_reschedule_does_not_reset_route_baseline(monkeypatch, tmp_path) -> None:
+    target = PushTarget(bot_qq=1, group_id=2, uids=[123])
+    store, sent = configure_poll(
         monkeypatch,
-        config=SimpleNamespace(enabled=True, cookie="", uids=[13148307]),
-        targets=[target],
-        client=client,
-        store=store,
+        tmp_path,
+        [target],
+        {123: [[item("old")], [item("new"), item("old")]]},
+    )
+    await startup.poll_job()
+    monkeypatch.setattr(startup.scheduler, "add_job", lambda *args, **kwargs: None)
+
+    startup.reschedule_poll_job(interval_sec=300)
+    await startup.poll_job()
+
+    assert len(sent) == 1
+    assert "\nnew\n" in sent[0]
+    assert store.was_delivered("123", "2", "new")
+
+
+@pytest.mark.asyncio
+async def test_scheduler_shutdown_cancels_in_flight_poll(monkeypatch, tmp_path) -> None:
+    entered = asyncio.Event()
+    cancelled = asyncio.Event()
+    target = PushTarget(bot_qq=1, group_id=2, uids=[123])
+    monkeypatch.setattr(
+        startup,
+        "plugin_config",
+        SimpleNamespace(enabled=True, cookie="", uids=[]),
+    )
+    monkeypatch.setattr(
+        startup,
+        "SubscriptionStore",
+        lambda: SimpleNamespace(targets=lambda: [target]),
+    )
+    monkeypatch.setattr(
+        startup,
+        "DeliveryCursorStore",
+        lambda: DeliveryCursorStore(tmp_path / "cursors.json"),
     )
 
-    await prime_initial_cursors()
+    class Client:
+        async def fetch_latest(self, _uid):
+            entered.set()
+            try:
+                await asyncio.Future()
+            except asyncio.CancelledError:
+                cancelled.set()
+                raise
 
-    assert not store.is_primed("13148307", target.key)
+    monkeypatch.setattr(startup, "BilibiliClient", lambda **_: Client())
+    scheduler = AsyncIOScheduler(event_loop=asyncio.get_running_loop())
+    scheduler.start()
+    scheduler.add_job(
+        startup.poll_job, "interval", seconds=0.05, id="test_in_flight_poll"
+    )
+    await asyncio.wait_for(entered.wait(), timeout=2)
+
+    scheduler.shutdown(wait=False)
+    await asyncio.wait_for(cancelled.wait(), timeout=2)
