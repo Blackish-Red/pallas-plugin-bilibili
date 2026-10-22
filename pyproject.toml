@@ -7,6 +7,7 @@ dependencies = [
     "nonebot2>=2.4.0",
     "nonebot-adapter-onebot>=2.4.0",
     "nonebot-plugin-apscheduler>=0.5.0",
+    "multidict>=6.9.1",
 ]
 
 [dependency-groups]
@@ -26,3 +27,9 @@ packages = ["src/pallas_plugin_bilibili"]
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 addopts = "-p no:cacheprovider"
+
+# 传递依赖安全下限。
+[tool.uv]
+constraint-dependencies = [
+    "multidict>=6.9.1",
+]
